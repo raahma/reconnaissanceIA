@@ -1,0 +1,573 @@
+<div id="main-wrapper">
+  <meta charset="utf-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    #main-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+      padding: 50px 20px;
+      font-family: 'Inter', sans-serif;
+      background: #ffffff;
+      min-height: 100vh;
+    }
+
+    .logo-ia {
+      width: 50px;
+      height: 50px;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 15px;
+      margin-bottom: 5px;
+    }
+
+    .page-title {
+      color: #003087;
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 15px;
+    }
+
+    .page-subtitle {
+      color: #666;
+      font-size: 16px;
+      font-weight: 400;
+      margin-bottom: 40px;
+      text-align: center;
+    }
+
+    #top-container {
+      width: 100%;
+      max-width: 1000px;
+      min-height: 350px;
+      height: auto;
+      display: flex;
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 30px;
+      box-shadow: 0 2px 12px rgba(0, 48, 135, 0.08);
+      transition: box-shadow 0.3s ease;
+    }
+
+    #top-container:hover {
+      box-shadow: 0 4px 20px rgba(0, 48, 135, 0.12);
+    }
+
+    #dropzone {
+      width: 350px;
+      aspect-ratio: 1 / 1;
+      background: #f8f9fa;
+      border-right: 1px solid #e0e0e0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      cursor: pointer;
+      overflow: hidden;
+      flex-shrink: 0;
+      transition: all 0.3s ease;
+      border: 3px solid transparent;
+    }
+
+    #dropzone:hover {
+      background: #f0f3f7;
+      border-color: #00e676;
+    }
+
+    #dropzone.hover {
+      background: #e8f0fe;
+      border-color: #00e676;
+    }
+
+    #preview {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      position: relative;
+      z-index: 1;
+    }
+
+    #overlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 85%;
+      padding: 18px 25px;
+      background: #003087;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      z-index: 2;
+      color: white;
+      font-weight: 500;
+      font-size: 15px;
+      pointer-events: none;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0, 48, 135, 0.25);
+    }
+
+    #loading-spinner {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      width: 32px;
+      height: 32px;
+      border: 4px solid #e0e0e0;
+      border-top: 4px solid #003087;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      display: none;
+      z-index: 3;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg);}
+      100% { transform: rotate(360deg);}
+    }
+
+    #prediction-list {
+      flex-grow: 1;
+      padding: 35px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-around;
+      gap: 14px;
+    }
+
+    .prediction-block {
+      padding: 18px 22px;
+      border-radius: 6px;
+      border: 2px solid #e0e0e0;
+      background: white;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      user-select: none;
+    }
+
+    .prediction-block:hover {
+      border-color: #003087;
+      box-shadow: 0 2px 8px rgba(0, 48, 135, 0.1);
+      transform: translateY(-2px);
+    }
+
+    .prediction-block.active {
+      background: #003087;
+      color: white;
+      border-color: #003087;
+      box-shadow: 0 4px 16px rgba(0, 48, 135, 0.2);
+    }
+
+    .prediction-block strong {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    #bottom-container {
+      width: 100%;
+      max-width: 1000px;
+      min-height: 260px;
+      height: auto;
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 25px;
+      box-sizing: border-box;
+      overflow: hidden;
+      display: none;
+      box-shadow: 0 2px 12px rgba(0, 48, 135, 0.08);
+      animation: slideIn 0.5s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    #image-slider {
+      display: flex;
+      flex-direction: row;
+      gap: 18px;
+      overflow-x: auto;
+      padding-bottom: 10px;
+      height: 100%;
+      scroll-behavior: smooth;
+    }
+
+    #image-slider::-webkit-scrollbar {
+      height: 8px;
+    }
+
+    #image-slider::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 4px;
+    }
+
+    #image-slider::-webkit-scrollbar-thumb {
+      background: #003087;
+      border-radius: 4px;
+    }
+
+    #image-slider::-webkit-scrollbar-thumb:hover {
+      background: #002060;
+    }
+
+    #default-message {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      height: 100%;
+      color: #555;
+      padding: 0 30px;
+      box-sizing: border-box;
+    }
+
+    #default-message h2 {
+      font-size: 26px;
+      font-weight: 700;
+      color: #003087;
+      margin-bottom: 12px;
+    }
+
+    #default-message p {
+      font-size: 15px;
+      line-height: 1.7;
+      color: #666;
+    }
+
+    .image-block {
+      width: 220px;
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      transition: transform 0.3s ease;
+    }
+
+    .image-block:hover {
+      transform: translateY(-5px);
+    }
+
+    .image-block img {
+      width: 200px;
+      height: 200px;
+      object-fit: cover;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      border: 1px solid #e0e0e0;
+    }
+
+    .image-block img:hover {
+      transform: scale(1.03);
+      box-shadow: 0 4px 16px rgba(0, 48, 135, 0.15);
+      border-color: #003087;
+    }
+
+    .image-caption {
+      margin-top: 10px;
+      font-size: 13px;
+      color: #003087;
+      text-align: center;
+      width: 200px;
+      text-decoration: none;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-weight: 500;
+      transition: color 0.3s ease;
+    }
+
+    .image-caption:hover {
+      color: #002060;
+      text-decoration: underline;
+    }
+
+    .progress-bar {
+      height: 6px;
+      background: #e0e0e0;
+      margin-top: 10px;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: #003087;
+      border-radius: 3px;
+      transition: width 0.5s ease;
+    }
+
+    .prediction-block.active .progress-bar {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .prediction-block.active .progress-fill {
+      background: white;
+    }
+
+    @media (max-width: 768px) {
+      #top-container {
+        flex-direction: column;
+      }
+
+      #dropzone {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid #e0e0e0;
+      }
+
+      .page-title {
+        font-size: 24px;
+      }
+
+      .page-subtitle {
+        font-size: 14px;
+      }
+
+      #prediction-list {
+        padding: 25px;
+      }
+    }
+
+    .disclaimer {
+      max-width: 1000px;
+      width: 100%;
+      margin-top: 30px;
+      padding: 16px 25px;
+      background: #fff8e1;
+      border-left: 4px solid #ffa726;
+      border-radius: 6px;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #666;
+    }
+
+    .disclaimer strong {
+      color: #e65100;
+      font-weight: 600;
+    }
+  </style>
+
+  <h1 class="page-title">
+    <svg class="logo-ia" viewBox="0 0 137.98 129.23" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <style>
+          .cls-1 { stroke-width: 2px; }
+          .cls-1, .cls-2 { fill: #003087; stroke: #003087; stroke-miterlimit: 10; }
+        </style>
+      </defs>
+      <g>
+        <path class="cls-2" d="M111.03,51.91c.16.18.72.38.95.33,1-.21,2.42-6.43,2.94-7.81,4.44-11.87,9.71-12.76,20.44-16.66,1.55-.56,3.34-1.33.93-2.46-6.15-2.87-11.26-2.42-16.49-8.32-4.55-5.13-4.45-9.62-6.86-15.27-.39-.91-1.34-1.79-2.01-.72-.59.95-1.46,5.25-2.03,6.82-3.51,9.67-7.93,13.1-17.41,16.33-1.08.37-5.17,1.05-5.27,2.1-.06.58.07.74.53,1.02,1.2.73,5.1,1.44,6.8,2.07,8.9,3.3,12.58,7.57,15.72,16.5.38,1.08,1.35,5.63,1.76,6.08ZM101.44,7.52l.23-.88c-1.83-.59-3.12-1.22-4.1-2.96-.33-.6-.55-3.05-1.5-1.44-.46.78-.65,2.01-1.39,2.76-.84.85-2.35,1.06-3.25,1.8-.16.65,2.61,1.46,3.25,2.1.56.56,1.55,3.28,1.78,3.28,1.4-2.09,1.96-4.55,4.97-4.67Z"/>
+        <path class="cls-2" d="M111.03,51.91c-.41-.44-1.38-5-1.76-6.08-3.14-8.93-6.82-13.2-15.72-16.5-1.7-.63-5.6-1.34-6.8-2.07-.46-.28-.6-.45-.53-1.02.11-1.04,4.19-1.73,5.27-2.1,9.49-3.23,13.91-6.66,17.41-16.33.57-1.56,1.44-5.86,2.03-6.82.67-1.08,1.62-.19,2.01.72,2.41,5.65,2.31,10.14,6.86,15.27,5.23,5.9,10.34,5.44,16.49,8.32,2.42,1.13.62,1.9-.93,2.46-10.73,3.9-16.01,4.79-20.44,16.66-.52,1.38-1.93,7.6-2.94,7.81-.24.05-.79-.15-.95-.33Z"/>
+        <path class="cls-2" d="M101.44,7.52c-3.01.13-3.57,2.58-4.97,4.67-.23,0-1.22-2.72-1.78-3.28-.64-.65-3.41-1.45-3.25-2.1.91-.74,2.41-.96,3.25-1.8.74-.75.93-1.98,1.39-2.76.95-1.62,1.17.84,1.5,1.44.97,1.75,2.26,2.38,4.1,2.96l-.23.88Z"/>
+      </g>
+      <g>
+        <g>
+          <path class="cls-1" d="M85.59,126.15l26.26-.39c.36-.4.42-.93.46-1.45.63-6.93-.63-14.89,0-21.84.02-.22.09-.81.32-.87,1-.11,1.99.03,1.97,1.24-.54,7.79.68,16.47,0,24.15-.04.43-.04.83-.39,1.14l-28.16.09c-.8-.15-.41-1.44-.45-2.09Z"/>
+          <path class="cls-1" d="M3.52,26.2l-.24,1.19.02,22.42c-.51,1.23-2.28.73-2.29-.58v-24.53c0-.75.77-1.07,1.42-1.05,8.45.58,17.85-.74,26.18,0,1.98.18,1.91,2.11.18,2.31-7.81.48-16.37-.65-24.09-.01-.4.03-.81.09-1.18.24Z"/>
+          <path class="cls-1" d="M1.71,101.65c.7-.21,1.58-.07,1.58.81l-.02,22.43.28.87,26.04.31c.65.2.52,1.6.14,1.97l-28.35.09-.29-.47-.1-25.01c-.02-.4.35-.89.71-1Z"/>
+          <path class="cls-1" d="M72.02,56.12c12.83,9.02,13.29,28.73,1.31,38.79-12.77,10.72-32.53,5.45-38.25-10.38-8.27-22.87,17.19-42.3,36.94-28.41ZM71.23,58.64c-20.64-15.89-46.05,10.04-30.86,30.89,5.97,8.19,17.89,10.97,26.86,6.48,14.56-7.29,17.12-27.27,4-37.37Z"/>
+        </g>
+      </g>
+    </svg>
+    <span>Reconnaissance de produits DirectAlu</span>
+  </h1>
+  <p class="page-subtitle">Identifiez vos pièces en quelques secondes grâce à l'intelligence artificielle</p>
+
+  <div id="top-container">
+    <div id="dropzone">
+      <img id="preview" style="display: none;" />
+      <div id="overlay">📸 Glissez une image ou cliquez ici</div>
+      <div id="loading-spinner"></div>
+    </div>
+    <div id="prediction-list">
+      <div id="default-message">
+        <h2>Retrouvez la référence d'une pièce en un clic</h2>
+        <p>Ce module permet de retrouver la référence d'une pièce dans le catalogue DirectAlu à partir d'une photo.</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="bottom-container">
+    <div id="image-slider"></div>
+  </div>
+
+  <div class="disclaimer">
+    <strong>⚠️ Important :</strong> Ce système utilise l'intelligence artificielle pour identifier les produits. Bien que très précis, il peut parfois se tromper. Nous vous recommandons de vérifier les résultats proposés avant de passer commande. En cas de doute, n'hésitez pas à contacter notre service client.
+  </div>
+
+  <script type="module">
+    import { Client } from "https://esm.sh/@gradio/client";
+
+    const dropzone = document.getElementById("dropzone");
+    const preview = document.getElementById("preview");
+    const overlay = document.getElementById("overlay");
+    const spinner = document.getElementById("loading-spinner");
+    const predictionList = document.getElementById("prediction-list");
+    const imageSlider = document.getElementById("image-slider");
+
+    function createProgressBar(prob) {
+      const bar = document.createElement("div");
+      bar.className = "progress-bar";
+
+      const fill = document.createElement("div");
+      fill.className = "progress-fill";
+      fill.style.width = `${(prob * 100).toFixed(2)}%`;
+
+      bar.appendChild(fill);
+      return bar;
+    }
+
+    function clearActiveClasses() {
+      document.querySelectorAll(".prediction-block").forEach(block => {
+        block.classList.remove("active");
+      });
+    }
+
+    function updateImageSlider(label) {
+      imageSlider.innerHTML = "";
+
+      const bottomContainer = document.getElementById("bottom-container");
+      const safeName = label;
+      const shortName = label.replace(/_/g, ' ')
+
+      let hasImage = false;
+
+      for (let i = 1; i <= 5; i++) {
+        const padded = i.toString().padStart(4, "0");
+        const printName = `${shortName}_${padded}.jpg`;
+        const filename = `${safeName}_${padded}.jpg`;
+        const url = `https://huggingface.co/spaces/RahmaDev/DirectAlu.com/resolve/main/imgs/${safeName}/${filename}`;
+        const redirect = `https://directalu.com/?ref=${filename}`;
+
+        const img = new Image();
+        img.src = url;
+        img.onload = () => {
+          hasImage = true;
+
+          const block = document.createElement("div");
+          block.className = "image-block";
+
+          const imgLink = document.createElement("a");
+          imgLink.href = redirect;
+          imgLink.target = "_blank";
+          imgLink.appendChild(img);
+
+          const captionLink = document.createElement("a");
+          captionLink.href = redirect;
+          captionLink.target = "_blank";
+          captionLink.className = "image-caption";
+          captionLink.textContent = printName;
+
+          block.appendChild(imgLink);
+          block.appendChild(captionLink);
+          imageSlider.appendChild(block);
+
+          bottomContainer.style.display = "block";
+        };
+
+        img.onerror = () => {
+          if (i === 5 && !hasImage) {
+            bottomContainer.style.display = "none";
+          }
+        };
+      }
+    }
+
+    async function handleFile(file) {
+      preview.src = URL.createObjectURL(file);
+      preview.style.display = "block";
+      spinner.style.display = "block";
+      overlay.textContent = "⏳ Analyse en cours...";
+
+      try {
+        const client = await Client.connect("RahmaDev/DirectAlu.com");
+        const result = await client.predict("/predict_image", { image: file });
+        const output = result.data[0];
+
+        const defaultMsg = document.getElementById("default-message");
+        if (defaultMsg) defaultMsg.remove();
+        predictionList.innerHTML = "";
+
+        for (let i = 0; i < 4; i++) {
+          const label = output.confidences[i].label;
+          const prob = output.confidences[i].confidence;
+
+          const block = document.createElement("div");
+          block.className = "prediction-block";
+          block.innerHTML = `<strong>${label.replace(/_/g, ' ')}</strong> : ${(prob * 100).toFixed(2)}%`;
+          block.appendChild(createProgressBar(prob));
+
+          block.addEventListener("click", () => {
+            clearActiveClasses();
+            block.classList.add("active");
+            updateImageSlider(label);
+          });
+
+          predictionList.appendChild(block);
+
+          if (i === 0) {
+            block.classList.add("active");
+            updateImageSlider(label);
+          }
+        }
+      } catch (err) {
+        predictionList.innerHTML = `<p style="color:red;">❌ Erreur : ${err.message}</p>`;
+      } finally {
+        spinner.style.display = "none";
+        overlay.textContent = "📸 Glissez une image ou cliquez ici";
+      }
+    }
+
+    dropzone.addEventListener("click", () => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      input.onchange = () => handleFile(input.files[0]);
+      input.click();
+    });
+
+    dropzone.addEventListener("dragover", e => {
+      e.preventDefault();
+      dropzone.classList.add("hover");
+    });
+
+    dropzone.addEventListener("dragleave", () => {
+      dropzone.classList.remove("hover");
+    });
+
+    dropzone.addEventListener("drop", e => {
+      e.preventDefault();
+      dropzone.classList.remove("hover");
+      if (e.dataTransfer.files.length > 0) {
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+  </script>
+</div>
