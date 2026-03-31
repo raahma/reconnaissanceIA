@@ -1024,11 +1024,11 @@
             </h2>
             
             <div class="main-result" id="main-result" style="display: none;">
-              <div class="result-name" id="result-name">Ferrage Et Accessoires Busettes</div>
+              <div class="result-name" id="result-name"></div>
               <div class="result-score-container">
                 <div class="score-info">
                   <span class="score-label">Confiance</span>
-                  <span class="score-value" id="score-value">82%</span>
+                  <span class="score-value" id="score-value"></span>
                 </div>
                 <div class="score-bar-container">
                   <div class="score-fill" id="score-fill"></div>
@@ -1058,9 +1058,9 @@
     </div>
   </div>
 
-  <script>
-    const HF_SPACE_URL = "https://rahmadev-directalu-com.hf.space";
-    const PREDICT_ENDPOINT = "/predict_image";
+  <script type="module">
+    import { Client } from "https://esm.sh/@gradio/client";
+
     const IMAGE_BASE_URL = "https://huggingface.co/spaces/RahmaDev/DirectAlu-v4/resolve/main/imgs";
     const PRODUCT_BASE_URL = "https://directalu.com/?ref=";
 
@@ -1106,27 +1106,6 @@
     const productsGrid = document.getElementById("products-grid");
 
     let allResults = [];
-
-    function normalizeApiOutput(raw) {
-      if (raw && Array.isArray(raw.confidences)) {
-        return raw;
-      }
-      if (raw && Array.isArray(raw.data) && raw.data[0] && Array.isArray(raw.data[0].confidences)) {
-        return raw.data[0];
-      }
-      throw new Error("Format de réponse API invalide");
-    }
-
-    function getMockOutput() {
-      return {
-        confidences: [
-          { label: "Ferrage_Et_Accessoires_Busettes", confidence: 0.82 },
-          { label: "Ferrage_Et_Accessoires_Butees", confidence: 0.11 },
-          { label: "Ferrage_Et_Accessoires_Chariots", confidence: 0.05 },
-          { label: "Ferrage_Et_Accessoires_Gaches", confidence: 0.02 }
-        ]
-      };
-    }
 
     function showResults(output) {
       allResults = [...output.confidences];
@@ -1205,20 +1184,6 @@
       }
     }
 
-    async function predictWithBackend(file) {
-      const formData = new FormData();
-      formData.append("image", file);
-
-      const response = await fetch(`${HF_SPACE_URL}${PREDICT_ENDPOINT}`, {
-        method: "POST",
-        body: formData
-      });
-      if (!response.ok) {
-        throw new Error(`API ${response.status}`);
-      }
-      return response.json();
-    }
-
     async function handleFile(file) {
       preview.src = URL.createObjectURL(file);
       preview.style.display = "block";
@@ -1234,14 +1199,9 @@
       }, 200);
 
       try {
-        let output;
-        try {
-          const apiResult = await predictWithBackend(file);
-          output = normalizeApiOutput(apiResult);
-        } catch (apiError) {
-          console.warn("Backend indisponible, fallback mock.", apiError);
-          output = getMockOutput();
-        }
+        const client = await Client.connect("https://rahmadev-directalu-com.hf.space");
+        const result = await client.predict("/predict_image", { image: file });
+        const output = result.data[0];
 
         clearInterval(progressInterval);
         progressFill.style.width = "100%";
@@ -1260,9 +1220,9 @@
         suggestionsList.innerHTML = `
           <div style="color: #ff6b6b; text-align: center; padding: 20px; background: rgba(255, 107, 107, 0.1); border-radius: 8px; margin: 10px;">
             <h3>❌ Erreur de connexion</h3>
-            <p><strong>Message:</strong> ${err.message}</p>
-            <p><strong>Cause possible:</strong> L'API n'est pas accessible actuellement.</p>
-            <p><strong>Solution:</strong> Vérifiez votre connexion internet ou réessayez plus tard.</p>
+            <p><strong>Message:</strong> ${err.message || String(err)}</p>
+            <p><strong>Cause possible:</strong> L'API n'est pas accessible actuellement ou l'espace Hugging Face est en mode "Preparing/Building".</p>
+            <p><strong>Solution:</strong> Vérifiez que l'espace est "Running" sur Hugging Face, puis réessayez.</p>
             <button onclick="location.reload()" style="background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-top: 10px;">
               🔄 Réessayer
             </button>
