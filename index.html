@@ -1840,10 +1840,10 @@
 
     /*
       §12 — Intégration sur directalu.com :
-      — Page WP dédiée (recommandé) : voir wordpress/page-scanner-ia.php + directalu-scanner-loader.php
-        et régénérer wordpress/directalu-scanner/ via node scripts/extract-wordpress-scanner.mjs
-      — Sans WordPress : classe scanner-page-embed sur <body> + contenu #main-wrapper dans le flux.
-      — Iframe : …/front_v5.html?embed=1 (fond transparent, thème clair, sans toggle thème).
+      — Bouton « Scanner ma pièce » : dans l’admin WordPress / le thème, mets un lien vers l’URL où
+        est servi ce HTML (ex. GitHub Pages : https://raahma.github.io/reconnaissanceIA/ après activation).
+      — Le dépôt Git ne modifie pas tout seul le site : il faut pointer le bouton vers cette URL.
+      — Iframe (si besoin) : …?embed=1 — intégration pleine page sans iframe : classe scanner-page-embed sur <body>.
     */
     html:has(body.scanner-page-embed) {
       background-image: none;
