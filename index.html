@@ -1,78 +1,143 @@
 <!DOCTYPE html>
+<!--
+  Scanner DirectAlu — reconnaissance produit (front statique).
+  Flux : image → client Gradio (@gradio/client) → espace HF → affichage scores + liens catalogue.
+-->
 <html lang="fr">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Scanner DirectAlu - Reconnaissance IA</title>
+  <!-- Polices web (Sora = titres, Source Sans 3 = corps) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
   
   <style>
+    /*
+     * =============================================================================
+     * FEUILLE DE STYLES — Scanner DirectAlu v5
+     * -----------------------------------------------------------------------------
+     * §1  :root                    Variables thème SOMBRE (couleurs, rayons, ombres)
+     * §2  [data-theme="light"]     Surcharge thème CLAIR sur <html>
+     * §3  body, #main-wrapper      Fond plein écran + voile / blur
+     * §4  .theme-toggle            Interrupteur clair / sombre (coin fixe)
+     * §5  .header … .scanner-*     En-tête + carte scanner + animations « analyse »
+     * §6  .webcam-panel            Panneau caméra (masqué par défaut)
+     * §7  .results-section …      Colonne droite : score, suggestions, avertissement
+     * §8  .similar-products-*      Grille « produits similaires » sous le scanner
+     * §9  .disclaimer              Encadré jaune « IA peut se tromper »
+     * §10 .privacy-box            Consentement données (avant envoi image)
+     * §11 @media                   Breakpoints tablette / mobile
+     * §12 .scanner-page-embed      Mode intégration WordPress (body class)
+     * =============================================================================
+     */
+    /* §1 — Variables CSS : mode sombre (défaut) */
     :root {
-      --bg-primary: linear-gradient(135deg, #0a1428 0%, #1a2332 50%, #0f1b2a 100%);
-      --bg-secondary: rgba(10, 20, 40, 0.8);
-      --bg-card: rgba(255, 255, 255, 0.03);
-      --border-color: rgba(0, 191, 255, 0.4);
-      --text-primary: #ffffff;
-      --text-secondary: rgba(255, 255, 255, 0.7);
-      --accent-color: #00bfff;
+      --accent-rgb: 0, 38, 143;
+      --accent-color: #00268F;
+      --accent-deep: #00268F;
+      --accent-mid: #0038D1;
+      --success-color: #36CF35;
+      --bg-secondary: rgba(10, 15, 28, 0.92);
+      --bg-card: rgba(15, 23, 42, 0.86);
+      --border-color: rgba(235, 235, 235, 0.12);
+      --border-strong: rgba(54, 207, 53, 0.45);
+      --text-primary: #EBEBEB;
+      --text-secondary: rgba(235, 235, 235, 0.65);
       --glass-bg: rgba(255, 255, 255, 0.1);
-      --glass-border: rgba(255, 255, 255, 0.2);
+      --glass-border: rgba(255, 255, 255, 0.14);
+      --wrapper-tint: linear-gradient(160deg, rgba(8, 12, 22, 0.88), rgba(0, 28, 92, 0.82), rgba(8, 12, 22, 0.9));
+      --overlay-scan: linear-gradient(158deg, rgba(8, 10, 14, 0.85) 0%, rgba(14, 18, 26, 0.78) 100%);
+      --radius-lg: 14px;
+      --radius-md: 10px;
+      --shadow-card: 0 18px 50px rgba(0, 0, 0, 0.35);
     }
 
+    /* §2 — Surcharge quand <html data-theme="light"> (préférence stockée localStorage) */
     [data-theme="light"] {
-      --bg-primary: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 50%, #dee2e6 100%);
-      --bg-secondary: rgba(255, 255, 255, 0.9);
+      --accent-rgb: 0, 38, 143;
+      --accent-color: #00268F;
+      --accent-deep: #00268F;
+      --accent-mid: #00268F;
+      --bg-secondary: rgba(255, 255, 255, 0.96);
       --bg-card: #ffffff;
-      --border-color: rgba(0, 123, 255, 0.3);
-      --text-primary: #212529;
-      --text-secondary: #6c757d;
-      --accent-color: #007bff;
-      --glass-bg: rgba(255, 255, 255, 0.8);
-      --glass-border: rgba(0, 0, 0, 0.1);
+      --border-color: rgba(3, 105, 161, 0.18);
+      --border-strong: rgba(3, 105, 161, 0.32);
+      --text-primary: #0f172a;
+      --text-secondary: rgba(15, 23, 42, 0.58);
+      --glass-bg: rgba(255, 255, 255, 0.92);
+      --glass-border: rgba(15, 23, 42, 0.07);
+      /* Voile clair sobre, avec plus de relief visuel */
+      --wrapper-tint: linear-gradient(160deg, rgba(255, 255, 255, 0.42) 0%, rgba(248, 250, 252, 0.38) 50%, rgba(241, 245, 249, 0.46) 100%);
+      --overlay-scan: linear-gradient(158deg, rgba(255, 255, 255, 0.92) 0%, rgba(248, 250, 252, 0.86) 100%);
+      --shadow-card: 0 4px 28px rgba(15, 23, 42, 0.08);
     }
 
+    /* Reset minimal + boîtes border-box */
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
     }
 
-    body {
-      background: url('reconnaissanceIA/73924f572c47452d5bcfc7e57d98dc45.jpg') center center;
+    /* §3 — Fond plein écran : sombre = circuit .jpeg ; clair = (2).jpeg (même image sur html + body pour bords / scroll) */
+    html {
+      min-height: 100%;
+    }
+
+    html:not([data-theme="light"]) {
+      background-color: #101a2e;
+      background-image: url('assets/icons/WhatsApp%20Image%202026-04-27%20at%2014.04.43.jpeg');
+      background-position: center center;
       background-size: cover;
       background-attachment: fixed;
+    }
+
+    html[data-theme="light"] {
+      background-color: #edf2f8;
+      background-image:
+        radial-gradient(circle at 12% 10%, rgba(0, 38, 143, 0.14) 0%, transparent 34%),
+        radial-gradient(circle at 88% 14%, rgba(54, 207, 53, 0.09) 0%, transparent 30%),
+        linear-gradient(165deg, #f8fafc 0%, #e9f0f8 52%, #e1eaf5 100%);
+      background-position: center;
+      background-size: cover;
+      background-repeat: no-repeat;
+      background-attachment: fixed;
+    }
+
+    body {
+      background-color: transparent;
+      background-image: none;
       min-height: 100vh;
       overflow-x: hidden;
-      transition: all 0.3s ease;
+      transition: background-color 0.35s ease;
     }
 
     [data-theme="light"] body {
-      background: url('reconnaissanceIA/d3e93e500710e9af8df138a546b5a1ad.jpg') center center;
-      background-size: cover;
-      background-attachment: fixed;
+      background-color: transparent;
+      background-image: none;
     }
 
+    /* Conteneur principal : typo corps + voile lisible sur le fond */
     #main-wrapper {
       display: flex;
       width: 100%;
-      font-family: 'Inter', sans-serif;
-      background: linear-gradient(135deg, rgba(10, 20, 40, 0.7) 0%, rgba(26, 35, 50, 0.7) 50%, rgba(15, 27, 42, 0.7) 100%);
+      font-family: 'Source Sans 3', system-ui, sans-serif;
+      background: var(--wrapper-tint);
       min-height: 100vh;
       position: relative;
-      backdrop-filter: blur(2px);
-      transition: all 0.3s ease;
+      backdrop-filter: blur(12px);
+      transition: background 0.35s ease, backdrop-filter 0.35s ease;
     }
 
     [data-theme="light"] #main-wrapper {
-      background: linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, rgba(248, 249, 250, 0.5) 50%, rgba(233, 236, 239, 0.4) 100%);
-      backdrop-filter: blur(1px);
+      backdrop-filter: none;
     }
 
-    /* Toggle Mode */
+    /* §4 — Bouton thème fixe (accessible depuis toggleTheme() en JS) */
     .theme-toggle {
-      position: fixed;
+      position: absolute;
       top: 20px;
       right: 20px;
       z-index: 1000;
@@ -80,18 +145,19 @@
       align-items: center;
       gap: 10px;
       background: var(--glass-bg);
-      backdrop-filter: blur(10px);
-      border: 1px solid var(--glass-border);
-      border-radius: 25px;
-      padding: 8px 15px;
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-radius: 999px;
+      padding: 10px 18px;
       cursor: pointer;
-      transition: all 0.3s ease;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+      box-shadow: var(--shadow-card);
     }
 
     .theme-toggle:hover {
-      background: var(--glass-bg);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+      transform: translateY(-1px);
+      border-color: var(--border-strong);
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.2);
     }
 
     .theme-icon {
@@ -104,7 +170,53 @@
       font-weight: 500;
     }
 
-    /* Particules d'arrière-plan */
+    .lang-toggle {
+      position: absolute;
+      top: 20px;
+      right: 190px;
+      z-index: 1000;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-radius: 999px;
+      padding: 6px;
+      box-shadow: var(--shadow-card);
+    }
+
+    .mobile-top-controls {
+      display: contents;
+    }
+
+    .lang-btn {
+      border: none;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.28);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      padding: 8px 12px;
+      min-width: 42px;
+      cursor: pointer;
+      transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+    }
+
+    .lang-btn:hover {
+      transform: translateY(-1px);
+      background: rgba(148, 163, 184, 0.4);
+    }
+
+    .lang-btn.is-active {
+      background: var(--accent-color);
+      color: #ffffff;
+      box-shadow: 0 6px 14px rgba(var(--accent-rgb), 0.38);
+    }
+
+    /* Lumière douce + motif « profils » (esprit menuiserie / aluminium) */
     #main-wrapper::before {
       content: '';
       position: absolute;
@@ -112,19 +224,53 @@
       left: 0;
       right: 0;
       bottom: 0;
-      background: 
-        radial-gradient(circle at 20% 30%, rgba(0, 191, 255, 0.08) 0%, transparent 50%),
-        radial-gradient(circle at 80% 70%, rgba(0, 191, 255, 0.05) 0%, transparent 50%),
-        radial-gradient(circle at 40% 80%, rgba(0, 191, 255, 0.06) 0%, transparent 50%);
+      background:
+        radial-gradient(ellipse 90% 55% at 50% -15%, rgba(var(--accent-rgb), 0.11), transparent 52%),
+        radial-gradient(circle at 92% 88%, rgba(var(--accent-rgb), 0.05), transparent 42%),
+        repeating-linear-gradient(
+          102deg,
+          transparent,
+          transparent 56px,
+          rgba(255, 255, 255, 0.018) 56px,
+          rgba(255, 255, 255, 0.018) 57px
+        );
       pointer-events: none;
     }
 
-    /* Main Content */
+    /* Mode sombre : léger halo en tête de page + traits un peu plus visibles */
+    html:not([data-theme="light"]) #main-wrapper::before {
+      background:
+        radial-gradient(ellipse 100% 55% at 50% -8%, rgba(255, 255, 255, 0.045), transparent 58%),
+        radial-gradient(ellipse 90% 55% at 50% -15%, rgba(var(--accent-rgb), 0.12), transparent 52%),
+        radial-gradient(circle at 92% 88%, rgba(var(--accent-rgb), 0.06), transparent 42%),
+        repeating-linear-gradient(
+          102deg,
+          transparent,
+          transparent 56px,
+          rgba(255, 255, 255, 0.02) 56px,
+          rgba(255, 255, 255, 0.02) 57px
+        );
+    }
+
+    [data-theme="light"] #main-wrapper::before {
+      background:
+        radial-gradient(ellipse 78% 52% at 50% -12%, rgba(var(--accent-rgb), 0.075), transparent 54%),
+        radial-gradient(circle at 90% 84%, rgba(var(--accent-rgb), 0.045), transparent 42%),
+        repeating-linear-gradient(
+          102deg,
+          transparent,
+          transparent 58px,
+          rgba(15, 23, 42, 0.022) 58px,
+          rgba(15, 23, 42, 0.022) 59px
+        );
+    }
+
+    /* Zone centrale limitée en largeur (max ~1180px) */
     .main-content {
       flex: 1;
-      padding: 20px;
+      padding: 20px 20px 32px;
       position: relative;
-      max-width: 1200px;
+      max-width: 1180px;
       margin: 0 auto;
     }
 
@@ -133,38 +279,146 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      margin-bottom: 15px;
+      margin-bottom: 16px;
       text-align: center;
     }
 
+    .brand-eyebrow {
+      font-family: 'Sora', sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: #ffffff;
+      margin-bottom: 10px;
+      padding: 5px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 999px;
+      background: var(--glass-bg);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    [data-theme="light"] .brand-eyebrow {
+      color: #00268f;
+    }
+
+    .brand-favicon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      margin-right: 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      background: rgba(255, 255, 255, 0.06);
+      flex-shrink: 0;
+      padding: 3px;
+      box-sizing: border-box;
+    }
+
+    .brand-favicon img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    /* Sombre : marque blanche ; clair : marque bleue */
+    .brand-favicon img.brand-favicon-img--light {
+      display: none;
+    }
+
+    [data-theme="light"] .brand-favicon img.brand-favicon-img--dark {
+      display: none;
+    }
+
+    [data-theme="light"] .brand-favicon img.brand-favicon-img--light {
+      display: block;
+    }
+
+    [data-theme="light"] .brand-favicon {
+      background: rgba(0, 38, 143, 0.06);
+      border-color: rgba(0, 38, 143, 0.25);
+    }
+
+    .title-deco {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 12px;
+    }
+
+    .title-deco span {
+      display: block;
+      height: 3px;
+      border-radius: 2px;
+      background: #00268F;
+    }
+
+    html:not([data-theme="light"]) .title-deco span {
+      background: #ffffff;
+    }
+
+    .title-deco span:nth-child(1) { width: 28px; }
+    .title-deco span:nth-child(2) { width: 48px; opacity: 1; }
+    .title-deco span:nth-child(3) { width: 28px; }
+
     .logo-ia {
-      width: 50px;
-      height: 50px;
+      width: 48px;
+      height: 48px;
       display: inline-block;
       vertical-align: middle;
-      margin-right: 15px;
+      margin-right: 12px;
+      color: #00268F;
+      flex-shrink: 0;
+    }
+
+    /* Rend l'icône du titre bien lisible sur fond sombre */
+    html:not([data-theme="light"]) .logo-ia {
+      color: #ffffff;
+      filter: drop-shadow(0 0 8px rgba(0, 255, 153, 0.35));
+    }
+
+    /* Option lisible en mode clair */
+    [data-theme="light"] .logo-ia {
+      color: #00268F;
+      filter: none;
     }
 
     .page-title {
       color: var(--text-primary);
-      font-size: 28px;
+      font-family: 'Sora', sans-serif;
+      font-size: clamp(1.25rem, 3.1vw, 1.72rem);
       font-weight: 600;
+      line-height: 1.2;
       display: flex;
       align-items: center;
-      gap: 15px;
-      margin-bottom: 10px;
+      gap: 12px;
+      margin-bottom: 0;
       text-align: center;
+      letter-spacing: -0.02em;
     }
 
     .page-subtitle {
       color: var(--text-secondary);
-      font-size: 16px;
+      font-size: 1rem;
       font-weight: 400;
       text-align: center;
       margin-bottom: 0;
-      margin-top: 10px;
+      margin-top: 8px;
+      max-width: 34rem;
+      line-height: 1.45;
     }
 
+    [data-theme="light"] .page-subtitle {
+      color: #000000;
+    }
+
+    /* Bloc englobant les deux colonnes (scanner | résultats) */
     .scanner-container {
       display: flex;
       flex-direction: column;
@@ -174,36 +428,33 @@
       margin: 0 auto;
     }
 
+    /* Flex horizontal desktop : ~65 % scanner / ~35 % résultats */
     .top-section {
       display: flex;
-      gap: 40px;
+      gap: 26px;
       align-items: flex-start;
       justify-content: flex-start;
       width: 100%;
     }
 
-    /* Zone Scanner */
+    /* §5 — Carte vitrée : zone de dépôt + boutons + consentement + webcam */
     .scanner-section {
       flex: 0 0 65%;
       max-width: 750px;
       background: var(--bg-secondary);
       backdrop-filter: blur(20px);
       border: 1px solid var(--border-color);
-      border-radius: 16px;
-      padding: 40px;
+      border-radius: var(--radius-lg);
+      padding: 22px 26px 26px;
       position: relative;
       overflow: hidden;
-      min-height: 500px;
+      min-height: auto;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-      transition: all 0.3s ease;
-    }
-
-    [data-theme="light"] .scanner-section {
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+      box-shadow: var(--shadow-card);
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
     }
 
     .scanner-section::before {
@@ -213,29 +464,69 @@
       left: 0;
       right: 0;
       bottom: 0;
-      background: 
-        radial-gradient(circle at 30% 20%, rgba(0, 191, 255, 0.05) 0%, transparent 50%),
-        radial-gradient(circle at 70% 80%, rgba(0, 191, 255, 0.03) 0%, transparent 50%);
+      background:
+        radial-gradient(circle at 18% 22%, rgba(var(--accent-rgb), 0.06) 0%, transparent 45%),
+        radial-gradient(circle at 88% 78%, rgba(var(--accent-rgb), 0.04) 0%, transparent 48%);
       pointer-events: none;
     }
 
+    /* #dropzone : clic = ouvrir fichier ; drag & drop ; état .scanning pendant l’API */
     .scan-area {
       position: relative;
       width: 100%;
-      max-width: 500px;
-      height: 450px;
-      border: 2px dashed rgba(0, 191, 255, 0.4);
-      border-radius: 16px;
+      max-width: 520px;
+      height: 300px;
+      border: 1px dashed rgba(235, 235, 235, 0.3);
+      border-radius: var(--radius-lg);
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
       cursor: pointer;
       transition: all 0.3s ease;
-      background: url('reconnaissanceIA/Affiche.jpg') center center;
+      background-color: #0a0f1c;
+      background-image: url('assets/icons/WhatsApp%20Image%202026-04-27%20at%2014.04.43%20(1).jpeg');
+      background-position: center center;
       background-size: cover;
-      margin-bottom: 30px;
+      margin-bottom: 18px;
       overflow: hidden;
+    }
+
+    html:not([data-theme="light"]) .scan-area {
+      background-color: #071328;
+      background-image: radial-gradient(circle at 50% 45%, rgba(88, 126, 184, 0.34), rgba(7, 19, 40, 0.95) 64%);
+      border: 2px dashed #ffffff;
+    }
+
+    html:not([data-theme="light"]) .scan-area:hover {
+      border-color: #36CF35;
+      box-shadow: 0 0 0 1px rgba(54, 207, 53, 0.35), 0 0 20px rgba(54, 207, 53, 0.25);
+    }
+
+    html:not([data-theme="light"]) .scan-area.scanning {
+      background-color: #071328;
+      background-image: radial-gradient(circle at 50% 45%, rgba(97, 140, 204, 0.38), rgba(7, 19, 40, 0.96) 66%);
+      background-position: center center;
+      background-size: cover;
+    }
+
+    [data-theme="light"] .scan-area {
+      background-color: #cfd5dc;
+      background-image:
+        radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.3), rgba(180, 190, 200, 0.55) 68%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(148, 163, 184, 0.18));
+      border-style: dashed;
+      border-width: 2px;
+      border-color: #2563eb;
+    }
+
+    [data-theme="light"] .scan-area:hover {
+      border-color: #36CF35;
+      box-shadow: 0 0 0 1px rgba(54, 207, 53, 0.35), 0 10px 26px rgba(54, 207, 53, 0.2);
+    }
+
+    [data-theme="light"] .scan-area.scanning {
+      animation: scanPulse 2s infinite, scanDashBlinkLight 1s infinite;
     }
 
     .scan-area-overlay {
@@ -244,9 +535,24 @@
       left: 0;
       right: 0;
       bottom: 0;
-      background: linear-gradient(135deg, rgba(10, 20, 40, 0.7) 0%, rgba(26, 35, 50, 0.7) 50%, rgba(15, 27, 42, 0.7) 100%);
+      background: linear-gradient(165deg, rgba(0, 0, 0, 0.62) 0%, rgba(0, 20, 70, 0.46) 55%, rgba(0, 0, 0, 0.62) 100%);
       backdrop-filter: blur(1px);
       z-index: 1;
+    }
+
+    html:not([data-theme="light"]) .scan-area-overlay {
+      background: transparent;
+      backdrop-filter: none;
+    }
+
+    html:not([data-theme="light"]) .scan-area.scanning .scan-area-overlay {
+      background: radial-gradient(circle at 50% 52%, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.16) 70%);
+      backdrop-filter: none;
+    }
+
+    [data-theme="light"] .scan-area-overlay {
+      background: linear-gradient(165deg, rgba(248, 250, 252, 0.82) 0%, rgba(226, 232, 240, 0.9) 100%);
+      backdrop-filter: blur(4px);
     }
 
     .scan-area-particles {
@@ -255,26 +561,40 @@
       left: 0;
       right: 0;
       bottom: 0;
-      background: 
-        radial-gradient(circle at 30% 20%, rgba(0, 191, 255, 0.08) 0%, transparent 50%),
-        radial-gradient(circle at 70% 80%, rgba(0, 191, 255, 0.05) 0%, transparent 50%);
+      background:
+        radial-gradient(circle at 30% 20%, rgba(0, 38, 143, 0.05) 0%, transparent 50%),
+        radial-gradient(circle at 70% 80%, rgba(54, 207, 53, 0.04) 0%, transparent 50%);
       pointer-events: none;
       z-index: 2;
     }
 
+    html:not([data-theme="light"]) .scan-area-particles {
+      display: none;
+    }
+
     .scan-area:hover {
-      border-color: #00bfff;
-      box-shadow: 0 0 30px rgba(0, 191, 255, 0.2);
+      border-color: var(--accent-color);
+      box-shadow: 0 0 0 1px rgba(0, 38, 143, 0.22), 0 12px 40px rgba(0, 0, 0, 0.25);
     }
 
     .scan-area.scanning {
-      border-color: #00bfff;
-      animation: scanPulse 2s infinite;
+      border-color: var(--accent-color);
+      animation: scanPulse 2s infinite, scanDashBlink 1s infinite;
     }
 
     @keyframes scanPulse {
-      0%, 100% { box-shadow: 0 0 20px rgba(0, 191, 255, 0.3); }
-      50% { box-shadow: 0 0 40px rgba(0, 191, 255, 0.6); }
+      0%, 100% { box-shadow: 0 0 0 1px rgba(0, 38, 143, 0.2), 0 0 18px rgba(0, 38, 143, 0.22); }
+      50% { box-shadow: 0 0 0 1px rgba(0, 38, 143, 0.32), 0 0 28px rgba(0, 38, 143, 0.3); }
+    }
+
+    @keyframes scanDashBlink {
+      0%, 100% { border-color: #ffffff; }
+      50% { border-color: #36CF35; }
+    }
+
+    @keyframes scanDashBlinkLight {
+      0%, 100% { border-color: #2563eb; }
+      50% { border-color: #36CF35; }
     }
 
     .scan-frame {
@@ -292,8 +612,8 @@
     .scan-frame::after {
       content: '';
       position: absolute;
-      border: 2px solid #00bfff;
-      opacity: 0.9;
+      border: 2px solid var(--accent-color);
+      opacity: 0.92;
     }
 
     /* Coin supérieur gauche */
@@ -325,7 +645,7 @@
       right: 40px;
       width: 50px;
       height: 50px;
-      border: 2px solid #00bfff;
+      border: 2px solid var(--accent-color);
       border-left: none;
       border-bottom: none;
       border-top-right-radius: 8px;
@@ -340,7 +660,7 @@
       left: 40px;
       width: 50px;
       height: 50px;
-      border: 2px solid #00bfff;
+      border: 2px solid var(--accent-color);
       border-right: none;
       border-top: none;
       border-bottom-left-radius: 8px;
@@ -370,13 +690,13 @@
     }
 
     @keyframes scanCorner {
-      0%, 100% { 
+      0%, 100% {
         opacity: 0.6;
-        box-shadow: 0 0 10px rgba(0, 191, 255, 0.3);
+        box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.28);
       }
-      50% { 
+      50% {
         opacity: 1;
-        box-shadow: 0 0 20px rgba(0, 191, 255, 0.6);
+        box-shadow: 0 0 20px rgba(var(--accent-rgb), 0.45);
       }
     }
 
@@ -387,7 +707,7 @@
       left: 40px;
       right: 40px;
       height: 2px;
-      background: linear-gradient(90deg, transparent, #00bfff, transparent);
+      background: linear-gradient(90deg, transparent, var(--accent-color), transparent);
       opacity: 0;
       transform: translateY(-50%);
       z-index: 15;
@@ -424,9 +744,10 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      padding: 50px 30px 30px 30px;
+      padding: 14px;
       box-sizing: border-box;
-      min-height: 200px;
+      min-height: 100%;
+      gap: 8px;
     }
 
     .scan-icon {
@@ -438,75 +759,320 @@
       position: relative;
     }
 
-    .scan-text {
-      color: rgba(255, 255, 255, 0.9);
+    .scan-center-icon {
+      width: 54px;
+      height: 54px;
+      color: #ffffff;
+      margin-top: 0;
+      margin-bottom: 10px;
+      z-index: 10;
+      position: relative;
+      opacity: 0.96;
+      filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.28));
+    }
+
+    [data-theme="light"] .scan-center-icon {
+      color: #00268F;
+    }
+
+    .scan-area .scan-text {
+      color: #EBEBEB;
+      font-family: 'Sora', sans-serif;
       font-size: 18px;
       font-weight: 600;
       margin-bottom: 20px;
       z-index: 10;
       position: relative;
-      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+      text-shadow: 0 1px 14px rgba(0, 0, 0, 0.45);
       white-space: nowrap;
       overflow: visible;
     }
 
-    .scan-subtext {
-      color: rgba(255, 255, 255, 0.7);
-      font-size: 16px;
+    .scan-area:not(.scanning) .scan-subtext {
+      color: #EBEBEB;
+      font-size: 18px;
+      font-weight: 700;
       z-index: 10;
       position: relative;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+      text-shadow: 0 1px 10px rgba(0, 0, 0, 0.4);
       white-space: nowrap;
       overflow: visible;
-      margin-bottom: 20px;
+      margin-bottom: 6px;
+      max-width: 520px;
+      text-align: center;
+    }
+
+    .scan-helper {
+      z-index: 10;
+      position: relative;
+      text-align: center;
+      margin-bottom: 12px;
+      font-family: 'Sora', sans-serif;
+    }
+
+    .scan-helper-line {
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.45;
+      white-space: nowrap;
+    }
+
+    html:not([data-theme="light"]) .scan-area .scan-text,
+    html:not([data-theme="light"]) .scan-area .scan-subtext {
+      color: #EBEBEB;
+      text-shadow: none;
+    }
+
+    [data-theme="light"] .scan-area .scan-text {
+      color: #0b1630;
+      text-shadow: none;
+    }
+
+    [data-theme="light"] .scan-area:not(.scanning) .scan-subtext {
+      color: #334155;
+      font-weight: 800;
+      text-shadow: none;
+    }
+
+    [data-theme="light"] .scan-helper-line {
+      color: #6b7280;
     }
 
     #preview {
-      max-width: 300px;
-      max-height: 250px;
-      border-radius: 12px;
+      display: none;
+      width: min(72%, 360px);
+      height: clamp(180px, 62%, 210px);
+      max-width: 360px;
+      max-height: 210px;
       object-fit: contain;
+      border-radius: 14px;
+      background: #ffffff;
+      padding: 10px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 255, 255, 0.45);
       z-index: 15;
       position: relative;
+      margin: 0 auto;
+      transition: filter 0.25s ease, transform 0.25s ease;
+    }
+
+    [data-theme="light"] #preview {
+      border-color: rgba(15, 23, 42, 0.12);
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+    }
+
+    .scan-area.has-preview .scan-content {
+      height: 100%;
+      padding: 16px 14px 58px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .scan-area.has-preview .scan-center-icon,
+    .scan-area.has-preview .scan-subtext,
+    .scan-area.has-preview .scan-helper {
+      display: none;
+    }
+
+    .scan-area.has-preview #preview {
       display: block;
-      margin: 0 auto; 
+    }
+
+    .scan-area.scanning .scan-center-icon {
+      opacity: 0;
+      visibility: hidden;
+    }
+
+    .scan-area.has-result .scan-center-icon,
+    .scan-area.has-result .scan-subtext,
+    .scan-area.has-result .scan-helper {
+      display: none;
+    }
+
+    .scan-area.scanning .scan-subtext {
+      color: #ffffff !important;
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: normal;
+      text-shadow: 0 1px 10px rgba(0, 0, 0, 0.5);
+    }
+
+    .scan-area.scanning .scan-helper {
+      display: none;
+    }
+
+    [data-theme="light"] .scan-area.scanning .scan-subtext {
+      color: #00268f !important;
+      text-shadow: none;
+    }
+
+    html:not([data-theme="light"]) .scan-area.scanning #preview {
+      filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.48));
+      transform: translateY(-2px);
     }
 
     .upload-btn {
-      background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 50%, #60a5fa 100%);
-      color: white;
-      border: 1px solid rgba(59, 130, 246, 0.3);
-      padding: 16px 32px;
-      border-radius: 12px;
-      font-size: 16px;
+      font-family: 'Sora', sans-serif;
+      background: linear-gradient(145deg, #00268F 0%, #0038D1 100%);
+      color: #fff;
+      border: 1px solid rgba(235, 235, 235, 0.22);
+      padding: 14px 28px;
+      border-radius: var(--radius-md);
+      font-size: 15px;
       font-weight: 600;
       cursor: pointer;
-      transition: all 0.3s ease;
-      box-shadow: 0 8px 25px rgba(59, 130, 246, 0.3);
-      backdrop-filter: blur(10px);
+      transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
+      position: relative;
+      z-index: 10;
+    }
+    .btn-icon,
+    .section-icon {
+      width: 18px;
+      height: 18px;
+      object-fit: contain;
+      display: inline-block;
+      vertical-align: middle;
+      flex-shrink: 0;
+    }
+
+    .btn-icon svg,
+    .section-icon svg {
+      width: 18px;
+      height: 18px;
+      display: block;
+    }
+
+    .upload-btn,
+    .results-title,
+    .similar-products-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    [data-theme="light"] .upload-btn {
+      color: #fff;
+      border-color: rgba(255, 255, 255, 0.25);
+    }
+
+    .upload-btn:hover:not(.upload-btn--secondary) {
+      transform: translateY(-2px);
+      background: linear-gradient(145deg, #0038D1 0%, #36CF35 100%);
+      color: #ffffff;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.34);
+    }
+
+    .upload-btn:active:not(.upload-btn--secondary) {
+      transform: translateY(-1px);
+    }
+
+    .scanner-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      align-items: center;
+      margin-top: 8px;
       position: relative;
       z-index: 10;
     }
 
-    .upload-btn:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 12px 35px rgba(59, 130, 246, 0.4);
-      background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 50%, #3b82f6 100%);
+    .upload-btn--secondary {
+      background: transparent;
+      color: #EBEBEB;
+      border: 1px solid rgba(235, 235, 235, 0.25);
+      box-shadow: none;
     }
 
-    .upload-btn:active {
+    .upload-btn--secondary:hover {
       transform: translateY(-1px);
+      background: rgba(54, 207, 53, 0.08);
+      border-color: #36CF35;
+      box-shadow: 0 0 0 1px rgba(54, 207, 53, 0.2), 0 6px 20px rgba(54, 207, 53, 0.12);
+      color: #36CF35;
     }
 
+    .upload-btn--secondary:active {
+      transform: translateY(0);
+    }
+
+    [data-theme="light"] .upload-btn--secondary {
+      color: var(--text-primary);
+      border: 1px solid rgba(15, 23, 42, 0.34);
+      background: rgba(255, 255, 255, 0.88);
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
+    }
+
+    [data-theme="light"] .upload-btn--secondary:hover {
+      border-color: #00268F;
+      color: #00268F;
+      background: #ffffff;
+      box-shadow: 0 4px 12px rgba(0, 38, 143, 0.16);
+    }
+
+    /* §6 — Webcam : affichée seulement avec la classe .is-open (JS) */
+    .webcam-panel {
+      display: none;
+      margin-top: 20px;
+      padding: 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      text-align: center;
+      position: relative;
+      z-index: 10;
+    }
+
+    .webcam-panel.is-open {
+      display: block;
+    }
+
+    .webcam-video-wrap {
+      position: relative;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #000;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    #webcam-video {
+      display: block;
+      width: 100%;
+      max-height: 320px;
+      object-fit: contain;
+    }
+
+    .webcam-panel-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 16px;
+    }
+
+    .webcam-panel-hint {
+      color: var(--text-secondary);
+      font-size: 13px;
+      margin-top: 10px;
+      line-height: 1.4;
+    }
+
+    /* Barre de progression factice pendant l’appel Gradio (feedback visuel) */
     .progress-bar-scan {
-      width: 60%;
-      max-width: 300px;
-      height: 6px;
+      width: min(65%, 360px);
+      max-width: 360px;
+      height: 7px;
       background: rgba(255, 255, 255, 0.1);
       border-radius: 3px;
       overflow: hidden;
       position: absolute;
-      bottom: 40px;
+      bottom: 44px;
       left: 50%;
       transform: translateX(-50%);
       display: none;
@@ -515,7 +1081,7 @@
 
     .progress-fill-scan {
       height: 100%;
-      background: linear-gradient(90deg, #00bfff, #0080ff);
+      background: linear-gradient(90deg, #1d4ed8 0%, #2563eb 42%, #36CF35 100%);
       border-radius: 3px;
       width: 0%;
       transition: width 0.3s ease;
@@ -541,56 +1107,96 @@
     }
 
     @keyframes progressGlow {
-      0%, 100% { box-shadow: 0 0 5px rgba(0, 191, 255, 0.5); }
-      50% { box-shadow: 0 0 15px rgba(0, 191, 255, 0.8); }
+      0%, 100% { box-shadow: 0 0 5px rgba(var(--accent-rgb), 0.45); }
+      50% { box-shadow: 0 0 14px rgba(var(--accent-rgb), 0.65); }
     }
 
-    .scan-status {
-      color: #00bfff;
+    .scan-area .scan-status {
+      color: #e0f2fe;
       font-size: 16px;
       font-weight: 600;
       position: absolute;
-      bottom: 10px;
+      bottom: 16px;
       left: 0;
       right: 0;
       display: none;
       z-index: 20;
       text-align: center;
-      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.7);
+      text-shadow: 0 1px 10px rgba(0, 0, 0, 0.5);
       white-space: nowrap;
       overflow: visible;
       margin: 0;
       padding: 0 20px;
     }
 
-    /* Résultats IA - Catégories */
-    .results-section {
-      flex: 0 0 35%;
-      min-width: 350px;
-      max-width: 400px;
-      background: rgba(10, 20, 40, 0.8);
-      backdrop-filter: blur(20px);
-      border: 1px solid rgba(0, 191, 255, 0.4);
-      border-radius: 16px;
-      padding: 25px;
-      height: fit-content;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    html:not([data-theme="light"]) .scan-area .scan-status {
+      color: #ffffff;
     }
 
-    /* Section des produits similaires */
+    [data-theme="light"] .scan-area .scan-status {
+      color: #00268f;
+      text-shadow: none;
+    }
+
+    /* §7 — Colonne droite : titre « Vos résultats de recherche », score, suggestions */
+    .results-section {
+      flex: 0 0 35%;
+      min-width: 330px;
+      max-width: 390px;
+      background: rgba(10, 15, 28, 0.92);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(235, 235, 235, 0.12);
+      border-radius: var(--radius-lg);
+      padding: 25px 24px;
+      height: fit-content;
+      box-shadow: var(--shadow-card);
+    }
+
+    [data-theme="light"] .results-section {
+      background: #ececec;
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    [data-theme="light"] .disclaimer {
+      background: #dcdcdc;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      color: #000000;
+    }
+
+    [data-theme="light"] .suggestions-title {
+      color: #000000;
+    }
+
+    [data-theme="light"] .results-title,
+    [data-theme="light"] .result-name,
+    [data-theme="light"] .score-label,
+    [data-theme="light"] .suggestion-name,
+    [data-theme="light"] .suggestion-score {
+      color: #000000;
+    }
+
+    /* §8 — Sous le scanner : cartes lien vers directalu.com (rempli par showSimilarProducts) */
     .similar-products-section {
       width: 100%;
-      background: rgba(10, 20, 40, 0.6);
-      backdrop-filter: blur(15px);
-      border: 1px solid rgba(0, 191, 255, 0.3);
-      border-radius: 16px;
+      background: rgba(10, 15, 28, 0.92);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(235, 235, 235, 0.12);
+      border-radius: var(--radius-lg);
       padding: 20px;
       margin-top: 20px;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+      box-shadow: var(--shadow-card);
+    }
+
+    [data-theme="light"] .similar-products-section {
+      background: #ececec;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      backdrop-filter: blur(16px);
     }
 
     .similar-products-title {
-      color: #ffffff;
+      font-family: 'Sora', sans-serif;
+      color: var(--text-primary);
       font-size: 18px;
       font-weight: 600;
       margin-bottom: 15px;
@@ -605,68 +1211,108 @@
       gap: 15px;
     }
 
-    .product-card {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 12px;
-      padding: 15px;
+    a.product-card {
+      display: block;
+      background: #ffffff;
+      border: 1px solid #EBEBEB;
+      border-radius: 14px;
+      padding: 14px;
       text-align: center;
       cursor: pointer;
       transition: all 0.3s ease;
+      text-decoration: none;
+      color: inherit;
     }
 
-    .product-card:hover {
-      background: rgba(0, 191, 255, 0.05);
-      border-color: rgba(0, 191, 255, 0.3);
+    a.product-card:hover {
+      background: #ffffff;
+      border-color: rgba(0, 38, 143, 0.28);
       transform: translateY(-2px);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.15);
     }
 
     .product-image {
       width: 100%;
-      height: 120px;
-      background: rgba(255, 255, 255, 0.1);
+      height: 110px;
+      background-color: #f8fafc;
       border-radius: 8px;
       margin-bottom: 12px;
-      background-size: cover;
+      background-size: contain;
+      background-repeat: no-repeat;
       background-position: center;
     }
 
-    .product-name {
-      color: #ffffff;
-      font-size: 14px;
-      font-weight: 500;
+    a.product-card .product-name {
+      color: #111827;
+      font-size: 13px;
+      font-weight: 600;
       margin-bottom: 8px;
       line-height: 1.3;
     }
 
-    .product-link {
-      color: #00bfff;
+    .product-link-text {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background: #00268F;
+      color: #ffffff;
       font-size: 12px;
+      font-weight: 600;
+    }
+
+    a.product-card:hover .product-link-text {
+      background: #36CF35;
+      color: #000000;
       text-decoration: none;
     }
 
-    .product-link:hover {
-      text-decoration: underline;
-    }
-
     .results-title {
-      color: #ffffff;
+      font-family: 'Sora', sans-serif;
+      color: var(--text-primary);
       font-size: 20px;
       font-weight: 600;
-      margin-bottom: 25px;
+      margin-bottom: 18px;
       display: flex;
       align-items: center;
       gap: 10px;
     }
 
+    .results-empty-state {
+      padding: 16px;
+      margin-bottom: 18px;
+      border-radius: 12px;
+      border: 1px dashed rgba(235, 235, 235, 0.2);
+      background: rgba(10, 15, 28, 0.58);
+      text-align: center;
+    }
+
+    .results-empty-state-title {
+      color: var(--text-primary);
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .results-empty-state-subtitle {
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    [data-theme="light"] .results-empty-state {
+      background: rgba(255, 255, 255, 0.7);
+      border-color: rgba(15, 23, 42, 0.12);
+    }
+
     /* Amélioration des barres de résultat */
     .main-result {
-      background: var(--glass-bg);
-      backdrop-filter: blur(15px);
-      border: 1px solid var(--glass-border);
+      background: rgba(10, 15, 28, 0.92);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(235, 235, 235, 0.12);
       border-radius: 16px;
-      padding: 25px;
-      margin-bottom: 25px;
+      padding: 20px;
+      margin-bottom: 18px;
       position: relative;
       overflow: hidden;
       transition: all 0.3s ease;
@@ -711,7 +1357,7 @@
     }
 
     .score-value {
-      color: var(--accent-color);
+      color: #00268F;
       font-size: 20px;
       font-weight: 700;
     }
@@ -731,10 +1377,10 @@
 
     .score-fill {
       height: 100%;
-      background: linear-gradient(90deg, var(--accent-color), #0080ff);
+      background: linear-gradient(90deg, #00268F, #36CF35);
       border-radius: 6px;
       transition: width 1.2s cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow: 0 0 15px rgba(0, 191, 255, 0.5);
+      box-shadow: 0 0 10px rgba(0, 38, 143, 0.28);
       position: relative;
       overflow: hidden;
     }
@@ -769,10 +1415,10 @@
     }
 
     .suggestions-title {
-      color: rgba(255, 255, 255, 0.8);
+      color: var(--text-secondary);
       font-size: 16px;
       font-weight: 500;
-      margin-bottom: 15px;
+      margin-bottom: 12px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -782,8 +1428,8 @@
       display: flex;
       align-items: center;
       padding: 15px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(10, 15, 28, 0.92);
+      border: 1px solid rgba(235, 235, 235, 0.12);
       border-radius: 12px;
       margin-bottom: 12px;
       cursor: pointer;
@@ -799,8 +1445,8 @@
       left: -100%;
       width: 100%;
       height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(0, 191, 255, 0.05), transparent);
-      animation: suggestionItemGlow 4s infinite;
+      background: linear-gradient(90deg, transparent, rgba(var(--accent-rgb), 0.06), transparent);
+      animation: suggestionItemGlow 5s infinite;
     }
 
     @keyframes suggestionItemGlow {
@@ -809,9 +1455,13 @@
     }
 
     .suggestion-item:hover {
-      background: rgba(0, 191, 255, 0.05);
-      border-color: rgba(0, 191, 255, 0.3);
-      box-shadow: 0 0 15px rgba(0, 191, 255, 0.2);
+      background: rgba(var(--accent-rgb), 0.06);
+      border-color: var(--border-strong);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+    }
+
+    .suggestion-item.is-low-confidence {
+      opacity: 0.72;
     }
 
     .suggestion-image {
@@ -830,7 +1480,7 @@
     }
 
     .suggestion-name {
-      color: #ffffff;
+      color: var(--text-primary);
       font-size: 15px;
       font-weight: 500;
       margin-bottom: 8px;
@@ -844,12 +1494,29 @@
     }
 
     .suggestion-score {
-      color: rgba(255, 255, 255, 0.6);
+      color: var(--text-secondary);
       font-size: 13px;
     }
 
+    html:not([data-theme="light"]) .result-name,
+    html:not([data-theme="light"]) .results-title,
+    html:not([data-theme="light"]) .result-kicker,
+    html:not([data-theme="light"]) .score-label,
+    html:not([data-theme="light"]) .score-value,
+    html:not([data-theme="light"]) .suggestions-title,
+    html:not([data-theme="light"]) .suggestion-name,
+    html:not([data-theme="light"]) .suggestion-score,
+    html:not([data-theme="light"]) .suggestion-percentage {
+      color: #ffffff;
+    }
+
+    html:not([data-theme="light"]) .suggestion-item,
+    html:not([data-theme="light"]) .suggestion-item.is-low-confidence {
+      opacity: 1;
+    }
+
     .suggestion-percentage {
-      color: #00bfff;
+      color: #00268F;
       font-size: 15px;
       font-weight: 600;
     }
@@ -864,10 +1531,10 @@
 
     .suggestion-progress-fill {
       height: 100%;
-      background: linear-gradient(90deg, #00bfff, #0080ff);
+      background: linear-gradient(90deg, #00268F, #36CF35);
       border-radius: 3px;
       transition: width 0.8s ease;
-      box-shadow: 0 0 8px rgba(0, 191, 255, 0.4);
+      box-shadow: 0 0 8px rgba(0, 38, 143, 0.22);
       position: relative;
       overflow: hidden;
     }
@@ -901,67 +1568,652 @@
       }
     }
 
-    /* Disclaimer */
+    /* §9 — Avertissement légal / qualité IA (non lié au RGPD photo) */
     .disclaimer {
       width: 100%;
       max-width: 350px;
-      background: rgba(255, 193, 7, 0.1);
-      border: 1px solid rgba(255, 193, 7, 0.3);
-      border-radius: 12px;
-      padding: 18px 20px;
-      font-size: 13px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 176, 32, 0.32);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      font-size: 12px;
       line-height: 1.5;
-      color: rgba(255, 255, 255, 0.8);
+      color: var(--text-secondary);
       margin-top: 20px;
       position: relative;
       box-sizing: border-box;
     }
 
-    .disclaimer-title {
-      color: #ffc107;
-      font-weight: 600;
-      margin-bottom: 8px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
+    html:not([data-theme="light"]) .disclaimer {
+      background: #555555;
+      color: #ffffff;
     }
 
     .disclaimer-content {
-      margin-top: 8px;
+      margin-top: 0;
     }
 
+    /* §10 — Données personnelles : même gris / bordure que .results-section (sombre #555555, clair #ececec) */
+    .privacy-box {
+      width: 100%;
+      max-width: 520px;
+      margin-top: 26px;
+      padding: 10px;
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(235, 235, 235, 0.12);
+      background: rgba(10, 15, 28, 0.92);
+      backdrop-filter: blur(10px);
+      box-shadow: var(--shadow-card);
+      box-sizing: border-box;
+      transition: border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+      opacity: 1;
+      visibility: visible;
+      transform: none;
+      position: relative;
+      z-index: 11;
+    }
+
+    .privacy-consent-content {
+      padding: 12px 14px;
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(235, 235, 235, 0.12);
+      background: #555555;
+    }
+
+    [data-theme="light"] .privacy-box {
+      background: #ececec;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      backdrop-filter: blur(16px);
+    }
+
+    [data-theme="light"] .privacy-consent-content {
+      background: #dcdcdc;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      backdrop-filter: blur(16px);
+    }
+
+    .privacy-box h3 {
+      font-family: 'Sora', sans-serif;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      margin: 0 0 12px;
+    }
+
+    html:not([data-theme="light"]) .privacy-box h3 {
+      color: #ffffff;
+    }
+
+    .consent-line {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      cursor: pointer;
+      font-size: 13px;
+      line-height: 1.4;
+      color: var(--text-primary);
+      margin: 0 0 8px;
+    }
+
+    .consent-line input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      margin-top: 2px;
+      flex-shrink: 0;
+      accent-color: var(--accent-deep);
+      cursor: pointer;
+    }
+
+    .privacy-note {
+      margin: 8px 0 0;
+      font-size: 12px;
+      line-height: 1.35;
+      color: var(--text-secondary);
+    }
+
+    .result-kicker {
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-size: 11px;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    [data-theme="light"] .main-result {
+      background: #ececec;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      backdrop-filter: blur(16px);
+    }
+
+    [data-theme="light"] .suggestion-item {
+      background: #f1f5f9;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+    }
+
+    [data-theme="light"] .suggestion-item:hover {
+      background: #e2e8f0;
+      border-color: rgba(0, 38, 143, 0.25);
+      box-shadow: 0 4px 16px rgba(15, 23, 42, 0.1);
+    }
+
+    [data-theme="light"] .suggestion-name {
+      color: #000000;
+    }
+
+    [data-theme="light"] .suggestion-score {
+      color: #000000;
+    }
+
+    [data-theme="light"] .suggestion-percentage {
+      color: #000000;
+    }
+
+    [data-theme="light"] .suggestion-progress-bar {
+      background: rgba(15, 23, 42, 0.14);
+    }
+
+    [data-theme="light"] .suggestion-item.is-low-confidence {
+      opacity: 1;
+    }
+
+    [data-theme="light"] .result-kicker {
+      color: rgba(15, 23, 42, 0.62);
+    }
+
+    .privacy-box a,
+    .privacy-note a {
+      color: #4da3ff;
+      text-decoration: underline;
+      font-weight: 600;
+      text-underline-offset: 2px;
+    }
+
+    .privacy-box a:hover,
+    .privacy-note a:hover {
+      color: #7dd3fc;
+    }
+
+    .privacy-box.privacy-box--warn {
+      border-color: rgba(248, 113, 113, 0.55);
+      box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.2);
+    }
+
+    /* §11 — Passe en colonne unique sous ~1200px */
     @media (max-width: 1200px) {
       .scanner-container {
         flex-direction: column;
         gap: 20px;
       }
+
+      .scan-area {
+        max-width: 100%;
+        height: 320px;
+      }
       
       .results-section {
         width: 100%;
+        max-width: 100%;
+        min-width: 0;
       }
       
       .disclaimer {
         width: 100%;
       }
     }
+
+    /* Mobile : titres, zone scan, toggle repositionnés */
+    @media (max-width: 640px) {
+      .privacy-note {
+        margin-left: 0;
+      }
+
+      .main-content {
+        padding-top: 56px;
+      }
+
+      .page-title {
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .scanner-section {
+        padding: 20px 16px 18px;
+      }
+
+      .scan-area {
+        height: min(60vh, 320px);
+        margin-bottom: 14px;
+      }
+
+      #preview {
+        width: min(80%, 320px);
+        max-width: 320px;
+        max-height: 180px;
+        height: auto;
+        padding: 8px;
+      }
+
+      .scanner-actions {
+        width: 100%;
+      }
+
+      .upload-btn {
+        width: 100%;
+        justify-content: center;
+      }
+
+      .results-section {
+        padding: 22px 18px;
+      }
+
+      .logo-ia {
+        margin-right: 0;
+      }
+
+      .brand-eyebrow {
+        letter-spacing: 0.14em;
+        font-size: 10px;
+        text-align: center;
+        max-width: 100%;
+      }
+
+      .scan-text,
+      .scan-subtext {
+        white-space: normal;
+        padding: 0 8px;
+      }
+
+      .theme-toggle {
+        top: 12px;
+        right: 12px;
+        padding: 8px 12px;
+      }
+
+      .lang-toggle {
+        top: 12px;
+        right: 152px;
+      }
+    }
+
+    /*
+      §12 — Intégration sur directalu.com (une seule page, pas d’iframe) :
+      — Dans WordPress : template de page « pleine largeur » + ajouter la classe
+        scanner-page-embed sur <body> (body_class), puis coller le contenu du scanner
+        (main-wrapper et suivants) dans le flux de la page.
+      — Cela supprime le second « plein écran » (100vh) qui force à scroller comme dans une sous-page.
+    */
+    html:has(body.scanner-page-embed) {
+      background-image: none;
+      background-color: transparent;
+      background-attachment: scroll;
+    }
+
+    body.scanner-page-embed {
+      min-height: 0;
+      background-image: none;
+      background-attachment: scroll;
+    }
+    body.scanner-page-embed #main-wrapper {
+      min-height: 0;
+    }
+
+    /* Si le scanner est encore dans une iframe : limiter la hauteur forcée à l’intérieur du cadre */
+    html.da-in-iframe,
+    html.da-in-iframe body {
+      min-height: 0 !important;
+    }
+    html.da-in-iframe #main-wrapper {
+      min-height: 0 !important;
+    }
+
+    /* Mobile/tablette étroite : layout mono-colonne, sans débordement horizontal */
+    @media (max-width: 768px) {
+      html,
+      body {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+      }
+
+      #main-wrapper,
+      .main-content,
+      .scanner-container,
+      .top-section,
+      .header,
+      .scanner-section,
+      .results-section {
+        width: 100%;
+        max-width: 100%;
+        margin-left: auto;
+        margin-right: auto;
+        box-sizing: border-box;
+        overflow-x: hidden;
+      }
+
+      #main-wrapper {
+        flex-direction: column;
+      }
+
+      .mobile-top-controls {
+        position: static;
+        width: 100%;
+        max-width: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin: 0 auto 18px auto;
+        padding: 0 12px;
+        box-sizing: border-box;
+      }
+
+      .theme-toggle {
+        position: static !important;
+        top: auto !important;
+        right: auto !important;
+        left: auto !important;
+        transform: none !important;
+        margin: 0;
+      }
+
+      .language-toggle,
+      .lang-toggle,
+      .language-switcher {
+        position: static !important;
+        top: auto !important;
+        right: auto !important;
+        left: auto !important;
+        transform: none !important;
+        max-width: 100%;
+      }
+
+      body,
+      #main-wrapper,
+      .main-content,
+      .scanner-container,
+      .top-section {
+        max-width: 100%;
+      }
+
+      .main-content {
+        padding: 14px 12px 28px;
+      }
+
+      .header {
+        width: 100%;
+        max-width: 100%;
+        text-align: center;
+        align-items: center;
+        padding-top: 16px;
+        margin: 0 auto 18px auto;
+      }
+
+      .page-title,
+      .page-subtitle,
+      .brand-eyebrow {
+        max-width: 100%;
+        text-align: center;
+      }
+
+      .page-title {
+        font-size: 1.35rem;
+        line-height: 1.25;
+      }
+
+      .page-subtitle {
+        font-size: 0.95rem;
+        line-height: 1.4;
+      }
+
+      .top-section {
+        flex-direction: column;
+        gap: 18px;
+        width: 100%;
+      }
+
+      .scanner-section,
+      .results-section {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        flex: none;
+      }
+
+      .scanner-section {
+        order: 1;
+        padding: 18px;
+      }
+
+      .results-section {
+        order: 2;
+        min-width: 0;
+        padding: 18px;
+      }
+
+      .scan-area {
+        width: 100%;
+        max-width: 100%;
+        height: auto;
+        min-height: 340px;
+        margin-bottom: 18px;
+      }
+
+      .scan-content {
+        padding: 28px 14px 24px;
+      }
+
+      .scan-text {
+        font-size: 16px;
+        white-space: normal;
+      }
+
+      .scan-subtext {
+        font-size: 14px;
+        white-space: normal;
+      }
+
+      #preview {
+        max-width: 90%;
+        max-height: 220px;
+        object-fit: contain;
+        margin: 12px auto 0;
+      }
+
+      .scanner-actions {
+        width: 100%;
+        flex-direction: column;
+        gap: 12px;
+        margin-top: 14px;
+      }
+
+      .upload-btn {
+        width: 100%;
+        min-height: 52px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .webcam-panel {
+        width: 100%;
+        padding: 14px;
+      }
+
+      .webcam-video-wrap {
+        max-width: 100%;
+      }
+
+      #webcam-video {
+        max-height: 260px;
+      }
+
+      .webcam-panel-actions {
+        flex-direction: column;
+      }
+
+      .results-title {
+        font-size: 18px;
+        margin-bottom: 18px;
+      }
+
+      .main-result {
+        padding: 18px;
+        margin-bottom: 18px;
+      }
+
+      .result-name {
+        font-size: 17px;
+      }
+
+      .score-value {
+        font-size: 18px;
+      }
+
+      .suggestion-item {
+        width: 100%;
+        padding: 12px;
+      }
+
+      .suggestion-image {
+        width: 56px;
+        height: 56px;
+        margin-right: 12px;
+      }
+
+      .suggestion-name {
+        font-size: 14px;
+        line-height: 1.3;
+        word-break: break-word;
+      }
+
+      .similar-products-section {
+        padding: 16px;
+        margin-top: 18px;
+      }
+
+      .products-grid {
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+
+      a.product-card {
+        padding: 14px;
+      }
+
+      .product-image {
+        height: 150px;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+      }
+
+      .product-name {
+        font-size: 14px;
+        line-height: 1.35;
+      }
+
+      .disclaimer {
+        max-width: 100%;
+        width: 100%;
+        margin-top: 18px;
+        padding: 14px;
+        font-size: 12.5px;
+      }
+    }
+
+    @media (max-width: 420px) {
+      .main-content {
+        padding: 12px 10px 24px;
+      }
+
+      .header {
+        margin-bottom: 14px;
+      }
+
+      .page-title {
+        font-size: 1.2rem;
+      }
+
+      .page-subtitle {
+        font-size: 0.9rem;
+      }
+
+      .scanner-section,
+      .results-section {
+        padding: 14px;
+      }
+
+      .scan-area {
+        min-height: 310px;
+      }
+
+      #preview {
+        max-width: 92%;
+        max-height: 190px;
+      }
+
+      .upload-btn {
+        width: 100%;
+      }
+
+      .mobile-top-controls {
+        gap: 8px;
+        margin-bottom: 18px;
+      }
+
+      .theme-toggle {
+        padding: 7px 12px;
+      }
+
+      .lang-btn {
+        min-width: 38px;
+        padding: 7px 10px;
+      }
+    }
   </style>
 </head>
 
 <body>
+  <!-- Si la page est dans une iframe, classe html.da-in-iframe pour éviter double scroll / hauteur 100vh -->
+  <script>
+    if (window.self !== window.top) document.documentElement.classList.add("da-in-iframe");
+  </script>
+
+  <!-- === Enveloppe page : fond flouté + contenu === -->
   <div id="main-wrapper">
-      <div class="theme-toggle" onclick="toggleTheme()">
-        <span class="theme-icon">🌙</span>
-        <span class="theme-text">Mode sombre</span>
+      <div class="mobile-top-controls">
+        <div class="lang-toggle" role="group" aria-label="Language switcher">
+          <button type="button" class="lang-btn is-active" data-lang="fr">FR</button>
+          <button type="button" class="lang-btn" data-lang="en">EN</button>
+        </div>
+        <!-- Thème clair/sombre : persistance localStorage clé "theme" -->
+        <div class="theme-toggle" onclick="toggleTheme()">
+          <span class="theme-icon">🌙</span>
+          <span class="theme-text">Mode sombre</span>
+        </div>
       </div>
 
       <div class="main-content">
+      <!-- Titre marketing + sous-titre (SEO / lecture rapide du service) -->
       <div class="header">
+        <p class="brand-eyebrow">
+          <span class="brand-favicon" aria-hidden="true">
+            <img class="brand-favicon-img--dark" src="assets/icons/monochrome%20blanc%20mark.svg" alt="" width="16" height="16" decoding="async" />
+            <img class="brand-favicon-img--light" src="assets/icons/Bleu%20OGSO%20mark.svg" alt="" width="16" height="16" decoding="async" />
+          </span>
+          <span data-i18n="brandEyebrow">Scanner intelligent</span>
+        </p>
         <h1 class="page-title">
-          <svg class="logo-ia" viewBox="0 0 137.98 129.23" xmlns="http://www.w3.org/2000/svg">
+          <!-- Logo vectoriel décoratif (currentColor = #00268F via .logo-ia) -->
+          <svg class="logo-ia" viewBox="0 0 137.98 129.23" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <defs>
               <style>
                 .cls-1 { stroke-width: 2px; }
-                .cls-1, .cls-2 { fill: #00bfff; stroke: #00bfff; stroke-miterlimit: 10; }
+                .cls-1, .cls-2 { fill: currentColor; stroke: currentColor; stroke-miterlimit: 10; }
               </style>
             </defs>
             <g>
@@ -978,14 +2230,17 @@
               </g>
             </g>
           </svg>
-          <span>Reconnaissance de produits DirectAlu</span>
+          <span data-i18n="pageTitle">Outil de reconnaissance digitale Scan IA</span>
         </h1>
-        <p class="page-subtitle">Identifiez vos pièces en quelques secondes grâce à l'intelligence artificielle</p>
+        <p class="page-subtitle" data-i18n="pageSubtitle">Identifiez ferrures, profils et accessoires en un instant.</p>
+        <div class="title-deco" aria-hidden="true"><span></span><span></span><span></span></div>
       </div>
 
       <div class="scanner-container">
         <div class="top-section">
+          <!-- ——— Colonne gauche : entrée image + consentement + webcam ——— -->
           <div class="scanner-section">
+            <!-- Zone cliquable / glisser-déposer ; id dropzone référencée en JS -->
             <div class="scan-area" id="dropzone">
               <div class="scan-area-overlay"></div>
               <div class="scan-area-particles"></div>
@@ -994,40 +2249,105 @@
               <div class="scan-corner-bl"></div>
               <div class="scan-line"></div>
               <div class="scan-content">
-                <div class="scan-text">Reconnaissance IA en cours...</div>
-                <div class="scan-subtext">Téléverser une image</div>
+                <span class="scan-center-icon" aria-hidden="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/></svg>
+                </span>
+                <div class="scan-subtext" id="scan-subtext-label" data-i18n="scanSubtextIdle">Téléverser une image</div>
+                <div class="scan-helper" id="scan-helper">
+                  <div class="scan-helper-line" data-i18n="scanHelperFormats">Formats acceptés : JPG, PNG, WEBP</div>
+                  <div class="scan-helper-line" data-i18n="scanHelperSize">Taille max : 15 Mo</div>
+                </div>
                 <img id="preview" style="display: none;" />
               </div>
               <div class="progress-bar-scan">
                 <div class="progress-fill-scan"></div>
               </div>
-              <div class="scan-status">Analyse en cours...</div>
+              <div class="scan-status"></div>
             </div>
-            
-            <button class="upload-btn" id="upload-button">
-              <span>☁️</span> Téléverser une image
-            </button>
 
+            <!-- Téléversement fichier + ouverture panneau webcam -->
+            <div class="scanner-actions">
+              <button type="button" class="upload-btn" id="upload-button">
+                <span class="btn-icon" aria-hidden="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/></svg>
+                </span>
+                <span data-i18n="uploadButton">Téléverser une image</span>
+              </button>
+              <button type="button" class="upload-btn upload-btn--secondary" id="webcam-toggle-button">
+                <span class="btn-icon" aria-hidden="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+                </span>
+                <span id="webcam-toggle-label" data-i18n="webcamButtonOpen">Appareil photo</span>
+              </button>
+            </div>
+
+            <!-- Consentement unique : analyse + enregistrement Supabase -->
+            <div class="privacy-box" id="privacy-consent-block" role="group" aria-labelledby="privacy-title">
+              <h3 id="privacy-title" data-i18n="privacyTitle">DONNÉES PERSONNELLES</h3>
+              <div class="privacy-consent-content">
+                <label class="consent-line" for="consent-analysis">
+                  <input type="checkbox" id="consent-analysis" autocomplete="off" />
+                  <span data-i18n="consentText">J’accepte que mon image soit traitée par un service d’analyse basé sur l’intelligence artificielle, hébergé de façon sécurisée, afin d’identifier le produit. J’autorise l’utilisation des données, sous forme anonymisée, pour l’entraînement et l’optimisation des modèles. Je reconnais avoir pris connaissance de la politique de confidentialité.</span>
+                </label>
+
+                <p class="privacy-note" data-i18n-html="privacyNoteHtml">
+                  Pour valider votre image, merci de cocher cette case. Vous pouvez retirer votre consentement à tout moment en nous contactant via la page <a href="https://directalu.com/fr/politique-de-confidentialite" target="_blank" rel="noopener noreferrer">Politique de confidentialité</a>.
+                </p>
+              </div>
+            </div>
+
+            <!-- getUserMedia : vidéo → canvas → File JPEG envoyé à handleFile -->
+            <div class="webcam-panel" id="webcam-panel" aria-hidden="true">
+              <div class="webcam-video-wrap">
+                <video id="webcam-video" playsinline muted autoplay></video>
+              </div>
+              <canvas id="webcam-canvas" style="display: none;"></canvas>
+              <div class="webcam-panel-actions">
+                <button type="button" class="upload-btn" id="webcam-capture-button">
+                  <span class="btn-icon" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+                  </span>
+                  <span data-i18n="webcamCapture">Prendre la photo</span>
+                </button>
+                <button type="button" class="upload-btn upload-btn--secondary" id="webcam-close-button">
+                  <span data-i18n="webcamClose">Fermer la webcam</span>
+                </button>
+              </div>
+              <p class="webcam-panel-hint" data-i18n="webcamHint">Autorisez l’accès à la caméra si le navigateur vous le demande. La photo est analysée comme une image importée.</p>
+            </div>
+
+            <!-- Rempli après prédiction : cartes produits (liens + meta WP optionnelle) -->
             <div class="similar-products-section" id="similar-products" style="display: none;">
               <h2 class="similar-products-title">
-                <span>🔍</span>
-                Produits similaires
+                <span class="section-icon" aria-hidden="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                </span>
+                <span data-i18n="similarProductsTitle">Produits similaires</span>
               </h2>
               <div class="products-grid" id="products-grid"></div>
             </div>
+
           </div>
 
+          <!-- ——— Colonne droite : résultat principal, top suggestions, disclaimer ——— -->
           <div class="results-section">
             <h2 class="results-title">
-              <span>🤖</span>
-              Résultat IA
+              <span class="section-icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M8 11h6"/><path d="M11 8v6"/></svg>
+              </span>
+              <span data-i18n="resultsTitle">Résultat de l’analyse</span>
             </h2>
+
+            <div class="results-empty-state" id="results-empty-state">
+              <div class="results-empty-state-title" data-i18n="resultsEmptyTitle">Aucune image analysée pour le moment.</div>
+              <div class="results-empty-state-subtitle" data-i18n="resultsEmptySubtitle">Importez une photo pour obtenir une prédiction IA.</div>
+            </div>
             
             <div class="main-result" id="main-result" style="display: none;">
               <div class="result-name" id="result-name"></div>
               <div class="result-score-container">
                 <div class="score-info">
-                  <span class="score-label">Confiance</span>
+                  <span class="score-label" data-i18n="scoreLabel">Confiance</span>
                   <span class="score-value" id="score-value"></span>
                 </div>
                 <div class="score-bar-container">
@@ -1037,33 +2357,519 @@
             </div>
 
             <div class="suggestions-title">
-              Catégories similaires
+              <span data-i18n="suggestionsTitle">Autres prédictions possibles</span>
               <span style="font-size: 14px;">-</span>
             </div>
 
+            <!-- Suggestions dynamiques (innerHTML depuis updateSuggestions) -->
             <div id="suggestions-list"></div>
 
-            <div class="disclaimer">
-              <div class="disclaimer-title">
-                <span>⚠️</span>
-                Important :
-              </div>
+            <div class="disclaimer" role="note" aria-label="Avertissement sur la fiabilité des résultats">
               <div class="disclaimer-content">
-                Ce système utilise l'intelligence artificielle pour identifier les produits. Bien que très précis, il peut parfois se tromper. Nous vous recommandons de vérifier les résultats proposés avant de passer commande.
+                <span data-i18n="disclaimer">Ce résultat est généré par un système d’intelligence artificielle basé sur l’analyse d’image. Malgré un haut niveau de précision, des erreurs peuvent subsister. Nous vous recommandons de vérifier les informations avant toute validation ou commande.</span>
               </div>
             </div>
+
           </div>
         </div>
       </div>
     </div>
   </div>
 
+  <!--
+    Copie de secours des liens produits (identique à product-links.json en prod).
+    Le script lit ce bloc en premier ; le fetch JSON écrase/complète si disponible.
+  -->
+  <script type="application/json" id="product-links-embedded">
+{
+  "byFile": {},
+  "byCategory": {
+    "Ferrage_Et_Accessoires_Chariots": [
+      "https://directalu.com/fr/catalogue/produit/019db1ed-dc02-704d-bb1c-5373e3270e0a",
+      "https://directalu.com/fr/catalogue/produit/019db1db-4822-72a1-9998-280d42e64a93",
+      "https://directalu.com/fr/catalogue/produit/019db1d5-236e-77ef-88fe-af1f041e824f"
+    ],
+    "Ferrage_Et_Accessoires_Charniere": [
+      "https://directalu.com/fr/catalogue/produit/019db1dd-8b83-7159-a75d-deb7e5abd8b5"
+    ],
+    "Poignee_Cuvette": [
+      "https://directalu.com/fr/catalogue/produit/019db1bf-b263-7263-84fa-bed118f0f166"
+    ],
+    "Ferrage_Et_Accessoires_Gaches": [
+      "https://directalu.com/fr/catalogue/produit/019db1d3-122a-7408-a7cf-29e893ba9195",
+      "https://directalu.com/fr/catalogue/produit/019db1e8-4db0-713d-9884-97c08045ac83",
+      "https://directalu.com/fr/catalogue/produit/019db1e6-9355-7424-b88f-4018cd935f14"
+    ],
+    "Serrure_Gaches": [
+      "https://directalu.com/fr/catalogue/produit/019db1e4-597c-767f-81be-a15399b4ed37",
+      "https://directalu.com/fr/catalogue/produit/019db1e2-5bcc-7677-853b-47f279d21439"
+    ],
+    "Serrure_Cremone_Multipoints": [
+      "https://directalu.com/fr/catalogue/produit/019db1ea-613b-706a-828b-a35ccbc199b8",
+      "https://directalu.com/fr/catalogue/produit/019db1c8-3aa8-75af-bd67-e86e52cc7771"
+    ],
+    "Ferrage_Et_Accessoires_Butees": [
+      "https://directalu.com/fr/catalogue/produit/019db1c2-de98-772b-b229-557c0970afae"
+    ],
+    "Joints_Et_Consommables_Equerres_Aluminium_Moulees": [
+      "https://directalu.com/fr/catalogue/produit/019db45a-be37-72ea-9a9a-30d070ae1857",
+      "https://directalu.com/fr/catalogue/produit/019db1af-e139-71a0-af7d-2e77b0885a91"
+    ],
+    "Joints_Et_Consommables_Visserie_Inox_Alu": [
+      "https://directalu.com/fr/catalogue/produit/019db45a-be37-72ea-9a9a-30d070ae1857",
+      "https://directalu.com/fr/catalogue/produit/019db1b9-bea7-7328-acdd-d3198a154271"
+    ]
+  }
+}
+  </script>
+
+  <!-- Logique applicative (module ES : import dynamique du client Gradio depuis esm.sh) -->
   <script type="module">
     import { Client } from "https://esm.sh/@gradio/client";
 
+    // --- URLs & données de configuration (adapter si changement d’espace HF ou de site) ---
+    /** Base URL des vignettes « dataset » servies depuis un dépôt / space Hugging Face public */
     const IMAGE_BASE_URL = "https://huggingface.co/spaces/RahmaDev/DirectAlu-v4/resolve/main/imgs";
-    const PRODUCT_BASE_URL = "https://directalu.com/?ref=";
+    const PRODUCT_LINKS_FILE_URL = "./product-links.json";
+    const PRODUCT_FALLBACK_URL = "https://directalu.com/";
+    /**
+     * Opt-in entraînement : URL du serveur qui enregistre l’image (voir training-upload-server.mjs).
+     * Local : npm run training-server  puis  npm run serve  → http://localhost:5500/front_v5.html
+     * Production : remplacer par ton HTTPS (même chemin /api/training-opt-in si tu gardes ce script).
+     */
+    const TRAINING_OPT_IN_UPLOAD_URL = "http://localhost:8787/api/training-upload";
 
+    /** Liens par nom de fichier exact (byFile) ou par libellé de catégorie (byCategory) */
+    let productLinksByFile = {};
+    let productLinksByCategory = {};
+    /** Index normalisé (sans accents, minuscules) pour matcher les labels Gradio */
+    let productLinksByCategoryNormalized = {};
+    /** Cache des réponses REST WordPress (évite de re-fetch les mêmes fiches produit) */
+    const productMetaCache = new Map();
+    /** Meta locale fiable (évite les soucis CORS) : URL produit -> {title, imageUrl} */
+    const DIRECTALU_META_OVERRIDES = {
+      "https://directalu.com/fr/catalogue/produit/019db45a-be37-72ea-9a9a-30d070ae1857": {
+        title: "Joint de fenetre a battants en EPDM avec fil metallique",
+        imageUrl: "https://api.directalu.com/uploads/products/019db43f-87e7-7d08-b1c8-36d9034554b5/019db45a-be37-72ea-9a9a-30d070ae1857/thumbnail.jpg"
+      },
+      "https://directalu.com/fr/catalogue/produit/019db1ed-dc02-704d-bb1c-5373e3270e0a": {
+        title: "Kit chariots pour profils aluminium DS4535",
+        imageUrl: "https://api.directalu.com/uploads/products/019da9de-15df-7608-884f-e8865237a47f/019db1ed-dc02-704d-bb1c-5373e3270e0a/thumbnail.png"
+      },
+      "https://directalu.com/fr/catalogue/produit/019db1dd-8b83-7159-a75d-deb7e5abd8b5": {
+        title: "Chariot bogie non reglable bois DS323589",
+        imageUrl: "https://api.directalu.com/uploads/products/019da9de-15df-7608-884f-e8865237a47f/019db1dd-8b83-7159-a75d-deb7e5abd8b5/thumbnail.png"
+      },
+      "https://directalu.com/fr/catalogue/produit/019db1db-4822-72a1-9998-280d42e64a93": {
+        title: "Kit chariots SR pour profils aluminium DS4534",
+        imageUrl: "https://api.directalu.com/uploads/products/019da9de-15df-7608-884f-e8865237a47f/019db1db-4822-72a1-9998-280d42e64a93/thumbnail.png"
+      },
+      "https://directalu.com/fr/catalogue/produit/019db1d5-236e-77ef-88fe-af1f041e824f": {
+        title: "Kit chariots baie coulissante PVC DS4899",
+        imageUrl: "https://api.directalu.com/uploads/products/019da9de-15df-7608-884f-e8865237a47f/019db1d5-236e-77ef-88fe-af1f041e824f/thumbnail.png"
+      },
+      "https://directalu.com/fr/catalogue/produit/019db1d3-122a-7408-a7cf-29e893ba9195": {
+        title: "Gache porte fenetre aluminium DS6812-013",
+        imageUrl: "https://api.directalu.com/uploads/products/019da9de-15df-7608-884f-e8865237a47f/019db1d3-122a-7408-a7cf-29e893ba9195/thumbnail.png"
+      },
+      "https://directalu.com/fr/catalogue/produit/019db1e8-4db0-713d-9884-97c08045ac83": {
+        title: "Gache coulissante aluminium SILENE DS2253-007",
+        imageUrl: "https://api.directalu.com/uploads/products/019da9de-15df-7608-884f-e8865237a47f/019db1e8-4db0-713d-9884-97c08045ac83/thumbnail.png"
+      },
+      "https://directalu.com/fr/catalogue/produit/019db1e6-9355-7424-b88f-4018cd935f14": {
+        title: "Gache baie coulissante aluminium DS2263-007",
+        imageUrl: "https://api.directalu.com/uploads/products/019da9de-15df-7608-884f-e8865237a47f/019db1e6-9355-7424-b88f-4018cd935f14/thumbnail.png"
+      },
+      "https://directalu.com/fr/catalogue/produit/019db1e4-597c-767f-81be-a15399b4ed37": {
+        title: "Gache coulissante aluminium SILENE DS2268-013",
+        imageUrl: "https://api.directalu.com/uploads/products/019da9de-15df-7608-884f-e8865237a47f/019db1e4-597c-767f-81be-a15399b4ed37/thumbnail.png"
+      },
+      "https://directalu.com/fr/catalogue/produit/019db1e2-5bcc-7677-853b-47f279d21439": {
+        title: "Gache coulissant en applique SILENE DS2274-007",
+        imageUrl: "https://api.directalu.com/uploads/products/019da9de-15df-7608-884f-e8865237a47f/019db1e2-5bcc-7677-853b-47f279d21439/thumbnail.png"
+      },
+      "https://directalu.com/fr/catalogue/produit/019db1ea-613b-706a-828b-a35ccbc199b8": {
+        title: "Verrou de porte classic DS6941-013",
+        imageUrl: "https://api.directalu.com/uploads/products/019da9de-15df-7608-884f-e8865237a47f/019db1ea-613b-706a-828b-a35ccbc199b8/thumbnail.png"
+      },
+      "https://directalu.com/fr/catalogue/produit/019db1c8-3aa8-75af-bd67-e86e52cc7771": {
+        title: "Verrou de porte classic DS6974-013",
+        imageUrl: "https://api.directalu.com/uploads/products/019da9de-15df-7608-884f-e8865237a47f/019db1c8-3aa8-75af-bd67-e86e52cc7771/thumbnail.png"
+      },
+      "https://directalu.com/fr/catalogue/produit/019db1c2-de98-772b-b229-557c0970afae": {
+        title: "Verrou en applique a cle DS6975-013",
+        imageUrl: "https://api.directalu.com/uploads/products/019da9de-15df-7608-884f-e8865237a47f/019db1c2-de98-772b-b229-557c0970afae/thumbnail.png"
+      },
+      "https://directalu.com/fr/catalogue/produit/019db1bf-b263-7263-84fa-bed118f0f166": {
+        title: "Poignee baie coulissante SILENE DS8298-036",
+        imageUrl: "https://api.directalu.com/uploads/products/019da9de-15df-7608-884f-e8865237a47f/019db1bf-b263-7263-84fa-bed118f0f166/thumbnail.png"
+      },
+      "https://directalu.com/fr/catalogue/produit/019db1b9-bea7-7328-acdd-d3198a154271": {
+        title: "Kit renovation fermeture double silene DS8299-036",
+        imageUrl: "https://api.directalu.com/uploads/products/019da9de-15df-7608-884f-e8865237a47f/019db1b9-bea7-7328-acdd-d3198a154271/thumbnail.png"
+      },
+      "https://directalu.com/fr/catalogue/produit/019db1af-e139-71a0-af7d-2e77b0885a91": {
+        title: "Verrou en applique a cle tete canne DS6972-013",
+        imageUrl: "https://api.directalu.com/uploads/products/019da9de-15df-7608-884f-e8865237a47f/019db1af-e139-71a0-af7d-2e77b0885a91/thumbnail.png"
+      }
+    };
+
+    const I18N = {
+      fr: {
+        themeDark: "Mode sombre",
+        themeLight: "Mode clair",
+        brandEyebrow: "Scanner intelligent",
+        pageTitle: "Outil de reconnaissance digitale Scan IA",
+        pageSubtitle: "Identifiez ferrures, profils et accessoires en un instant.",
+        scanSubtextIdle: "Téléverser une image",
+        scanSubtextScanning: "Scan IA en cours ...",
+        scanStatusDone: "Chargement terminé",
+        scanHelperFormats: "Formats acceptés : JPG, PNG, WEBP",
+        scanHelperSize: "Taille max : 15 Mo",
+        uploadButton: "Téléverser une image",
+        webcamButtonOpen: "Appareil photo",
+        webcamButtonClose: "Fermer",
+        webcamCapture: "Prendre la photo",
+        webcamClose: "Fermer la webcam",
+        webcamHint: "Autorisez l’accès à la caméra si le navigateur vous le demande. La photo est analysée comme une image importée.",
+        privacyTitle: "DONNÉES PERSONNELLES",
+        consentText:
+          "J’accepte que mon image soit traitée par un service d’analyse basé sur l’intelligence artificielle, hébergé de façon sécurisée, afin d’identifier le produit. J’autorise l’utilisation des données, sous forme anonymisée, pour l’entraînement et l’optimisation des modèles. Je reconnais avoir pris connaissance de la politique de confidentialité.",
+        privacyNoteHtml:
+          'Pour valider votre image, merci de cocher cette case. Vous pouvez retirer votre consentement à tout moment en nous contactant via la page <a href="https://directalu.com/fr/politique-de-confidentialite" target="_blank" rel="noopener noreferrer">Politique de confidentialité</a>.',
+        similarProductsTitle: "Produits similaires",
+        resultsTitle: "Résultat de l’analyse",
+        scoreLabel: "Confiance",
+        suggestionsTitle: "Autres prédictions possibles",
+        resultsEmptyTitle: "Aucune image analysée pour le moment.",
+        resultsEmptySubtitle: "Importez une photo pour obtenir une prédiction IA.",
+        disclaimer:
+          "Ce résultat est généré par un système d’intelligence artificielle basé sur l’analyse d’image. Malgré un haut niveau de précision, des erreurs peuvent subsister. Nous vous recommandons de vérifier les informations avant toute validation ou commande.",
+        suggestionScore: "Score",
+        productDirectAlu: "Produit DirectAlu",
+        productView: "Voir le produit",
+        apiUnexpected: "Réponse API inattendue",
+        predictionFormatError: "Format de prédiction non reconnu. Vérifiez la version de l’espace Gradio.",
+        webcamUnsupported: "Votre navigateur ne permet pas d’utiliser l’appareil photo sur cette page.",
+        webcamAccessError:
+          "Impossible d’accéder à la webcam (permission refusée ou pas de caméra). Vous pouvez toujours téléverser une image.",
+        connectionErrorTitle: "❌ Erreur de connexion",
+        connectionErrorMessageLabel: "Message:",
+        connectionErrorCauseLabel: "Cause possible:",
+        connectionErrorCauseText:
+          "L'API n'est pas accessible actuellement ou l'espace Hugging Face est en mode \"Preparing/Building\".",
+        connectionErrorSolutionLabel: "Solution:",
+        connectionErrorSolutionText:
+          "Vérifiez que l'espace est \"Running\" sur Hugging Face, puis réessayez.",
+        retry: "🔄 Réessayer",
+      },
+      en: {
+        themeDark: "Dark mode",
+        themeLight: "Light mode",
+        brandEyebrow: "Smart scanner",
+        pageTitle: "Digital recognition tool Scan AI",
+        pageSubtitle: "Identify hardware, profiles, and accessories in seconds.",
+        scanSubtextIdle: "Upload an image",
+        scanSubtextScanning: "AI scan in progress ...",
+        scanStatusDone: "Loading complete",
+        scanHelperFormats: "Accepted formats: JPG, PNG, WEBP",
+        scanHelperSize: "Max size: 15 MB",
+        uploadButton: "Upload an image",
+        webcamButtonOpen: "Camera",
+        webcamButtonClose: "Close",
+        webcamCapture: "Take photo",
+        webcamClose: "Close camera",
+        webcamHint: "Allow camera access if the browser asks. The photo is analyzed like an uploaded image.",
+        privacyTitle: "PERSONAL DATA",
+        consentText:
+          "I agree that my image may be processed by a secure AI-based analysis service to identify the product. I authorize the use of anonymized data for model training and optimization. I confirm that I have read the privacy policy.",
+        privacyNoteHtml:
+          'To validate your image, please check this box. You can withdraw your consent at any time by contacting us via the <a href="https://directalu.com/en/privacy-policy" target="_blank" rel="noopener noreferrer">Privacy policy</a> page.',
+        similarProductsTitle: "Similar products",
+        resultsTitle: "Analysis result",
+        scoreLabel: "Confidence",
+        suggestionsTitle: "Other possible predictions",
+        resultsEmptyTitle: "No image analyzed yet.",
+        resultsEmptySubtitle: "Upload a photo to get an AI prediction.",
+        disclaimer:
+          "This result is generated by an AI image-analysis system. Despite high accuracy, errors may still occur. We recommend checking the information before validation or order.",
+        suggestionScore: "Score",
+        productDirectAlu: "DirectAlu product",
+        productView: "View product",
+        apiUnexpected: "Unexpected API response",
+        predictionFormatError: "Unknown prediction format. Please check the Gradio space version.",
+        webcamUnsupported: "Your browser does not allow camera usage on this page.",
+        webcamAccessError:
+          "Unable to access the webcam (permission denied or no camera). You can still upload an image.",
+        connectionErrorTitle: "❌ Connection error",
+        connectionErrorMessageLabel: "Message:",
+        connectionErrorCauseLabel: "Possible cause:",
+        connectionErrorCauseText:
+          "The API is currently unreachable or the Hugging Face space is in \"Preparing/Building\" mode.",
+        connectionErrorSolutionLabel: "Solution:",
+        connectionErrorSolutionText:
+          "Check that the space is \"Running\" on Hugging Face, then try again.",
+        retry: "🔄 Retry",
+      },
+    };
+
+    const CATEGORY_TRANSLATIONS_EN = {
+      type_de_fenetre: "Window type",
+      poignees: "Handles",
+      serrures: "Locks",
+      ferrage_et_accessoires: "Accessories",
+      joints_et_consommables: "Gaskets and commodities",
+      fenetre_coulissante: "Sliding window",
+      coulissantes: "Sliding",
+      fenetre_a_battant: "Casement window",
+      battantes: "Side hung",
+      projetantes: "Top hung",
+      fenetre_a_soufflet: "Awning window",
+      fenetre_oscillo_battante: "Tilt-and-turn window",
+      oscillo_battantes: "Tilt and turn",
+      fenetre_levant_coulissante: "Lift-and-slide window",
+      levant_coulissant: "Lift and slide",
+      porte: "Door",
+      autre: "Other",
+      poignee_carre_7_mm: "7 mm square handles",
+      poignees_carre_7_mm: "Handle spindle 7mm",
+      poignee_carre_8_mm: "8 mm square handles",
+      poignees_carre_8_mm: "Handle spindle 8mm",
+      poignee_cuvette: "Cup handles",
+      poignees_cuvette: "Recess handle",
+      poignee_tirage: "Pull handles",
+      poignees_tirage: "Pull handle",
+      poignee_cremone: "Cremone handle",
+      poignees_cremone: "Cremone handle",
+      poignee_levant_coulissant: "Lift-and-slide handle",
+      poignee_pour_levant_coulissant: "Lift and slide handle",
+      gaches: "Strikes",
+      serrure_gaches: "Strikes",
+      gache: "Locking plate",
+      serrure_cremone_multipoints: "Multipoint cremone lock",
+      serrure_porte: "Door lock",
+      serrure_pour_porte: "Door lock",
+      serrure_pene_crochet: "Bolt / Hook",
+      pene_crochet: "Hook",
+      serrure_cuvette: "Cup lock",
+      tringles: "Rods",
+      serrure_tringles: "Rods",
+      verrou_semi_fixe: "Semi-fixed bolt",
+      verrou_de_semi_fixe: "Lever bolt",
+      serrure_verrou_semi_fixe: "Semi-fixed bolt",
+      loqueteaux: "Latches",
+      loqueteau: "Latch lock",
+      serrure_loqueteaux: "Latches",
+      serrure_came: "Cam lock",
+      came_batteuse: "Cockspur",
+      charnieres: "Hinges",
+      ferrage_et_accessoires_charniere: "Hinges",
+      charniere_paumelle: "Butt hinges",
+      ferrage_et_accessoires_charniere_paumelle: "Butt hinges",
+      kit_oscillo_battant: "Tilt-and-turn kit",
+      ferrage_et_accessoires_kit_oscillo_battant: "Tilt-and-turn kit",
+      anti_fausse_manoeuvre_afm: "Anti-misoperation - AFM",
+      ferrage_et_accessoires_anti_fausse_manoeuvre_afm: "Anti-misoperation - AFM",
+      compas_limiteur: "Limiting stay arms",
+      ferrage_et_accessoires_compas_limiteur: "Limiting stay arms",
+      tringles_barre_de_ferrage: "Rods",
+      ferrage_et_accessoires_tringles_barre_de_ferrage: "Rods / hardware bar",
+      embouts_de_tringle: "Rod ends",
+      embouts_de_tringles: "Bracket",
+      ferrage_et_accessoires_embouts_de_tringle: "Rod ends",
+      renvois_d_angle: "Corner drives",
+      renvois_dangle: "Corner drive",
+      ferrage_et_accessoires_renvois_d_angle: "Corner drives",
+      chariots: "Rollers",
+      ferrage_et_accessoires_chariots: "Rollers",
+      butees: "Bumper",
+      ferrage_et_accessoires_butees: "Bumper",
+      bagues: "Drain cap",
+      busettes: "Drain cap",
+      ferrage_et_accessoires_bagues: "Drain cap",
+      cylindre: "Lock pad",
+      ferrage_et_accessoires_cylindre: "Cylinder",
+      joints_epdm: "EPDM seals",
+      joints_et_consommables_joints_epdm: "EPDM seals",
+      joints_pvc_alu: "PVC / aluminum seals",
+      joints_et_consommables_joints_pvc_alu: "PVC / aluminum seals",
+      joints_a_coller: "Glue-on seals",
+      joints_et_consommables_joints_a_coller: "Glue-on seals",
+      joints_a_cliper: "Clipable gaskets",
+      joints_et_consommables_joints_a_cliper: "Clipable gaskets",
+      joints_a_glisser: "Sliding gaskets",
+      joints_a_enfiler: "Slide-in seals",
+      joints_et_consommables_joints_a_enfiler: "Slide-in seals",
+      consommables: "Consumables",
+      joints_et_consommables_consommables: "Commodities",
+      outils: "Tools",
+      joints_et_consommables_outils: "Tools",
+      equerres_aluminium_moulees: "Aluminum/cast brackets",
+      joints_et_consommables_equerres_aluminium_moulees: "Aluminum/cast brackets",
+      visserie_inox_alu: "Stainless screws",
+      joints_et_consommables_visserie_inox_alu: "Stainless screws",
+      besoin_daide: "Need help?",
+      comment_mesurer_une_piece: "How to measure a part",
+      trouver_par_marque: "Find by brand",
+      contacter_un_expert: "Contact an expert",
+    };
+
+    const WORD_TRANSLATIONS_EN = {
+      ferrage: "hardware",
+      accessoires: "accessories",
+      joints: "seals",
+      consommables: "consumables",
+      serrure: "lock",
+      serrures: "locks",
+      poignee: "handle",
+      poignees: "handles",
+      carre: "square",
+      cuvette: "cup",
+      tirage: "pull",
+      cremone: "cremone",
+      levant: "lift",
+      coulissant: "sliding",
+      multipoints: "multipoint",
+      porte: "door",
+      pene: "bolt",
+      crochet: "hook",
+      tringles: "rods",
+      verrou: "bolt",
+      semi: "semi",
+      fixe: "fixed",
+      loqueteaux: "latches",
+      came: "cam",
+      charniere: "hinges",
+      charnieres: "hinges",
+      paumelle: "butt",
+      kit: "kit",
+      oscillo: "tilt-and-turn",
+      battant: "casement",
+      anti: "anti",
+      fausse: "misoperation",
+      manoeuvre: "",
+      compas: "limit",
+      limiteur: "stay",
+      barre: "bar",
+      embouts: "ends",
+      renvois: "corner",
+      angle: "drives",
+      chariots: "carriages",
+      gaches: "strikes",
+      butees: "stops",
+      bagues: "bushings",
+      cylindre: "cylinder",
+      epdm: "EPDM",
+      pvc: "PVC",
+      alu: "aluminum",
+      coller: "glue-on",
+      cliper: "clip-on",
+      enfiler: "slide-in",
+      outils: "tools",
+      equerres: "brackets",
+      aluminium: "aluminum",
+      moulees: "cast",
+      visserie: "screws",
+      inox: "stainless",
+      et: "",
+      de: "",
+      a: "",
+      mm: "mm",
+      "7": "7",
+      "8": "8",
+    };
+
+    const PRODUCT_TITLE_RULES_EN = [
+      [/\bKit chariots\b/gi, "Roller kit"],
+      [/\bchariots\b/gi, "rollers"],
+      [/\bprofils\b/gi, "profiles"],
+      [/\baluminium\b/gi, "aluminum"],
+      [/\bbaie coulissante\b/gi, "sliding bay"],
+      [/\bcoulissante\b/gi, "sliding"],
+      [/\bserrure\b/gi, "lock"],
+      [/\bgâches?\b/gi, "locking plate"],
+      [/\bgaches?\b/gi, "locking plate"],
+      [/\bpoignées?\s+de\s+tirage\b/gi, "pull handle"],
+      [/\bpoignées?\s+carr[ée]?\s*7\s*mm\b/gi, "handle spindle 7mm"],
+      [/\bpoignées?\s+carr[ée]?\s*8\s*mm\b/gi, "handle spindle 8mm"],
+      [/\bpoignées?\s+cuvette\b/gi, "recess handle"],
+      [/\bpoignées?\b/gi, "handle"],
+      [/\bpoignée\b/gi, "handle"],
+      [/\bpoignee\b/gi, "handle"],
+      [/\bcrémone\b/gi, "cremone"],
+      [/\bcremone\b/gi, "cremone"],
+      [/\bp[êe]ne\s*\/\s*crochet\b/gi, "hook"],
+      [/\btringles?\b/gi, "rods"],
+      [/\bloqueteaux?\b/gi, "latch lock"],
+      [/\bcame-?batteuse\b/gi, "cockspur"],
+      [/\bcompas\s+limiteur\b/gi, "limiting stay arms"],
+      [/\bembouts?\s+de\s+tringles?\b/gi, "bracket"],
+      [/\brenvois?\s+d[’']?angle\b/gi, "corner drive"],
+      [/\bbut[ée]es?\b/gi, "bumper"],
+      [/\bbusettes?\b/gi, "drain cap"],
+      [/\bcylindre\b/gi, "lock pad"],
+      [/\bjoints?\s+epdm\b/gi, "EPDM gaskets"],
+      [/\bjoints?\s+pvc\s*\/\s*aluminium\b/gi, "PVC gaskets"],
+      [/\bjoints?\s+[àa]\s+coller\b/gi, "glue gaskets"],
+      [/\bjoints?\s+[àa]\s+clipser\b/gi, "clipable gaskets"],
+      [/\bjoints?\s+[àa]\s+glisser\b/gi, "sliding gaskets"],
+      [/\bconsommables\b/gi, "commodities"],
+      [/\b[ée]querres?\s+aluminium\s*\/\s*moul[ée]es\b/gi, "corner cleats"],
+      [/\bfenêtre\b/gi, "window"],
+      [/\bfenetre\b/gi, "window"],
+    ];
+
+    let currentLang = localStorage.getItem("ui_lang") === "en" ? "en" : "fr";
+
+    function t(key) {
+      return (I18N[currentLang] && I18N[currentLang][key]) || (I18N.fr && I18N.fr[key]) || key;
+    }
+
+    function normalizeLabelKey(value) {
+      return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, "_")
+        .replace(/_+/g, "_")
+        .trim()
+        .toLowerCase();
+    }
+
+    function formatCategoryLabel(label) {
+      const raw = String(label || "");
+      if (!raw) return "";
+      if (currentLang === "en") {
+        const normalized = normalizeLabelKey(raw);
+        const translated = CATEGORY_TRANSLATIONS_EN[normalized];
+        if (translated) return translated;
+
+        const autoTranslated = normalized
+          .split("_")
+          .map((part) => WORD_TRANSLATIONS_EN[part] ?? part)
+          .filter((part) => part && part.trim().length > 0)
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim();
+
+        if (autoTranslated) {
+          return autoTranslated.replace(/\b\w/g, (c) => c.toUpperCase());
+        }
+      }
+      return raw.replace(/_/g, " ");
+    }
+
+    function localizeProductTitle(title) {
+      const raw = String(title || "").trim();
+      if (!raw || currentLang !== "en") return raw;
+
+      let out = raw;
+      PRODUCT_TITLE_RULES_EN.forEach(([pattern, replacement]) => {
+        out = out.replace(pattern, replacement);
+      });
+      return out.replace(/\s+/g, " ").trim();
+    }
+
+    // --- Thème clair / sombre (exposé sur window pour le onclick du bouton hors module) ---
     function toggleTheme() {
       const html = document.documentElement;
       const themeToggle = document.querySelector(".theme-toggle");
@@ -1073,28 +2879,42 @@
       if (html.getAttribute("data-theme") === "light") {
         html.removeAttribute("data-theme");
         themeIcon.textContent = "🌙";
-        themeText.textContent = "Mode sombre";
+        themeText.textContent = t("themeDark");
         localStorage.setItem("theme", "dark");
       } else {
         html.setAttribute("data-theme", "light");
         themeIcon.textContent = "☀️";
-        themeText.textContent = "Mode clair";
+        themeText.textContent = t("themeLight");
         localStorage.setItem("theme", "light");
       }
+      const dz = document.getElementById("dropzone");
+      if (dz) dz.style.borderColor = "";
     }
 
     const savedTheme = localStorage.getItem("theme");
     if (savedTheme === "light") {
       document.documentElement.setAttribute("data-theme", "light");
       document.querySelector(".theme-icon").textContent = "☀️";
-      document.querySelector(".theme-text").textContent = "Mode clair";
+      document.querySelector(".theme-text").textContent = t("themeLight");
     }
     window.toggleTheme = toggleTheme;
 
+    // --- Couleurs d’accent dérivées des variables CSS (bordure dropzone drag, etc.) ---
+    function accentRgba(alpha) {
+      const rgb = getComputedStyle(document.documentElement).getPropertyValue("--accent-rgb").trim();
+      return rgb ? `rgba(${rgb}, ${alpha})` : `rgba(125, 211, 252, ${alpha})`;
+    }
+
+    function accentSolid() {
+      return getComputedStyle(document.documentElement).getPropertyValue("--accent-color").trim() || "#7dd3fc";
+    }
+
+    // --- Références DOM (scanner, résultats, webcam, consentement) ---
     const dropzone = document.getElementById("dropzone");
     const preview = document.getElementById("preview");
     const uploadButton = document.getElementById("upload-button");
     const mainResult = document.getElementById("main-result");
+    const resultsEmptyState = document.getElementById("results-empty-state");
     const resultName = document.getElementById("result-name");
     const scoreValue = document.getElementById("score-value");
     const scoreFill = document.getElementById("score-fill");
@@ -1102,17 +2922,464 @@
     const progressBar = document.querySelector(".progress-bar-scan");
     const progressFill = document.querySelector(".progress-fill-scan");
     const scanStatus = document.querySelector(".scan-status");
+    const scanSubtextLabel = document.getElementById("scan-subtext-label");
     const similarProducts = document.getElementById("similar-products");
     const productsGrid = document.getElementById("products-grid");
+    const webcamPanel = document.getElementById("webcam-panel");
+    const webcamVideo = document.getElementById("webcam-video");
+    const webcamCanvas = document.getElementById("webcam-canvas");
+    const webcamToggleButton = document.getElementById("webcam-toggle-button");
+    const webcamCaptureButton = document.getElementById("webcam-capture-button");
+    const webcamCloseButton = document.getElementById("webcam-close-button");
 
     let allResults = [];
+    let webcamStream = null;
 
+    const webcamToggleLabel = document.getElementById("webcam-toggle-label");
+    const consentAnalysisCheckbox = document.getElementById("consent-analysis");
+    const privacyConsentBlock = document.getElementById("privacy-consent-block");
+
+    function updateThemeToggleText() {
+      const themeText = document.querySelector(".theme-text");
+      const isLight = document.documentElement.getAttribute("data-theme") === "light";
+      if (themeText) themeText.textContent = isLight ? t("themeLight") : t("themeDark");
+    }
+
+    function applyTranslations() {
+      document.querySelectorAll("[data-i18n]").forEach((el) => {
+        const key = el.getAttribute("data-i18n");
+        if (key) el.textContent = t(key);
+      });
+      document.querySelectorAll("[data-i18n-html]").forEach((el) => {
+        const key = el.getAttribute("data-i18n-html");
+        if (key) el.innerHTML = t(key);
+      });
+      document.querySelectorAll(".lang-btn").forEach((btn) => {
+        btn.classList.toggle("is-active", btn.dataset.lang === currentLang);
+      });
+
+      const webcamPanelOpen = webcamPanel && webcamPanel.classList.contains("is-open");
+      if (webcamToggleLabel) {
+        webcamToggleLabel.textContent = webcamPanelOpen ? t("webcamButtonClose") : t("webcamButtonOpen");
+      }
+
+      const isScanning = dropzone && dropzone.classList.contains("scanning");
+      const hasResult = dropzone && dropzone.classList.contains("has-result");
+      if (isScanning && scanSubtextLabel) {
+        scanSubtextLabel.textContent = t("scanSubtextScanning");
+      } else if (hasResult && scanStatus) {
+        scanStatus.textContent = t("scanStatusDone");
+      } else if (!hasResult && scanSubtextLabel) {
+        scanSubtextLabel.textContent = t("scanSubtextIdle");
+      }
+
+      updateThemeToggleText();
+    }
+
+    function setLanguage(lang) {
+      currentLang = lang === "en" ? "en" : "fr";
+      localStorage.setItem("ui_lang", currentLang);
+      applyTranslations();
+      if (allResults.length > 0) {
+        resultName.textContent = formatCategoryLabel(allResults[0].label);
+        updateSuggestions();
+        if (similarProducts && similarProducts.style.display !== "none") {
+          showSimilarProducts(allResults[0].label);
+        }
+      }
+    }
+
+    document.querySelectorAll(".lang-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        setLanguage(btn.dataset.lang);
+      });
+    });
+    applyTranslations();
+
+    /**
+     * Barrière consentement : true si l’analyse IA (case obligatoire) est acceptée.
+     * Appelée depuis openFileDialog, handleFile, startWebcam.
+     */
+    function ensurePhotoReuseConsent() {
+      if (consentAnalysisCheckbox && consentAnalysisCheckbox.checked) return true;
+      if (privacyConsentBlock) {
+        privacyConsentBlock.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        privacyConsentBlock.classList.add("privacy-box--warn");
+        setTimeout(() => privacyConsentBlock.classList.remove("privacy-box--warn"), 2800);
+      }
+      if (consentAnalysisCheckbox) consentAnalysisCheckbox.focus();
+      return false;
+    }
+
+    /**
+     * Si TRAINING_OPT_IN_UPLOAD_URL est défini et consentement unique coché :
+     * envoie l’image + métadonnées prédiction.
+     * Asynchrone, ne bloque pas l’affichage des résultats ; erreurs uniquement en console.
+     */
+    function maybeUploadTrainingOptIn(file, output, source = "upload") {
+      const url = String(TRAINING_OPT_IN_UPLOAD_URL || "").trim();
+      if (!url) return;
+      if (!consentAnalysisCheckbox || !consentAnalysisCheckbox.checked) return;
+      const top = output?.confidences?.[0];
+      const fd = new FormData();
+      fd.append("image", file, file.name || "scan.jpg");
+      fd.append("consent_training", "true");
+      fd.append("source", source);
+      fd.append("created_at", new Date().toISOString());
+      fd.append("user_agent", navigator.userAgent || "");
+      if (top?.label) fd.append("predicted_label", String(top.label));
+      if (typeof top?.confidence === "number" && !Number.isNaN(top.confidence)) {
+        fd.append("predicted_confidence", String(top.confidence));
+        fd.append("confidence", String(top.confidence));
+      }
+      fetch(url, { method: "POST", body: fd, mode: "cors", credentials: "omit" })
+        .then(async (res) => {
+          if (!res.ok) {
+            let detail = "";
+            try {
+              detail = await res.text();
+            } catch {
+              /* ignore */
+            }
+            console.warn("Opt-in entraînement : HTTP", res.status, res.statusText, detail);
+            return;
+          }
+          try {
+            const data = await res.json();
+            console.info("Opt-in entraînement enregistré :", data);
+          } catch {
+            console.info("Opt-in entraînement : réponse OK");
+          }
+        })
+        .catch((err) => console.warn("Opt-in entraînement : réseau ou CORS", err));
+    }
+
+    // --- Chargement & résolution des liens catalogue (product-links.json + fallback embarqué) ---
+    function normalizeCategoryKey(value) {
+      return String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, "_")
+        .replace(/_+/g, "_")
+        .trim()
+        .toLowerCase();
+    }
+
+    function rebuildCategoryIndex() {
+      productLinksByCategoryNormalized = {};
+      Object.entries(productLinksByCategory).forEach(([key, links]) => {
+        productLinksByCategoryNormalized[normalizeCategoryKey(key)] = links;
+      });
+    }
+
+    function applyProductLinksData(data) {
+      if (!data || typeof data !== "object" || Array.isArray(data)) return;
+      if (data.byFile || data.byCategory) {
+        const fromFile = data.byFile && typeof data.byFile === "object" ? data.byFile : {};
+        const fromCategory =
+          data.byCategory && typeof data.byCategory === "object" ? data.byCategory : {};
+        productLinksByFile = fromFile;
+        productLinksByCategory = fromCategory;
+        rebuildCategoryIndex();
+      } else {
+        productLinksByFile = data;
+        productLinksByCategory = {};
+        rebuildCategoryIndex();
+      }
+    }
+
+    /** Parse le <script type="application/json" id="product-links-embedded"> au chargement */
+    function loadEmbeddedProductLinksSync() {
+      const el = document.getElementById("product-links-embedded");
+      if (!el || !el.textContent?.trim()) return;
+      try {
+        applyProductLinksData(JSON.parse(el.textContent));
+      } catch (e) {
+        console.warn("product-links embarqué invalide:", e);
+      }
+    }
+
+    /** Tente de charger ./product-links.json par-dessus les données embarquées (même schéma JSON) */
+    async function loadProductLinks() {
+      try {
+        const response = await fetch(PRODUCT_LINKS_FILE_URL, { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        if (data && typeof data === "object" && !Array.isArray(data)) {
+          if (data.byFile || data.byCategory) {
+            applyProductLinksData(data);
+          } else {
+            applyProductLinksData({ byFile: data, byCategory: {} });
+          }
+        } else {
+          console.warn("product-links.json doit contenir un objet clé/valeur.");
+        }
+      } catch (error) {
+        console.warn(
+          "Impossible de charger product-links.json — utilisation des liens embarqués si présents.",
+          error
+        );
+      }
+    }
+
+    /**
+     * Normalise la sortie de l’API Gradio vers { confidences: [{ label, confidence }, ...] }.
+     * Gère deux formats : objet avec tableau confidences, ou dictionnaire label → score.
+     */
+    function normalizeGradioLabelOutput(raw) {
+      if (raw == null) return { confidences: [] };
+      if (Array.isArray(raw.confidences) && raw.confidences.length > 0) {
+        const normalized = raw.confidences
+          .map((c) => {
+            if (!c || typeof c.label !== "string") return null;
+            const n = typeof c.confidence === "number" ? c.confidence : parseFloat(c.confidence);
+            if (Number.isNaN(n)) return null;
+            return { label: c.label, confidence: n };
+          })
+          .filter(Boolean);
+        if (normalized.length > 0) return { confidences: normalized };
+      }
+      if (typeof raw === "object" && !Array.isArray(raw)) {
+        const confidences = Object.entries(raw)
+          .filter(([k, v]) => typeof k === "string" && k !== "label" && k !== "confidences")
+          .map(([label, confidence]) => {
+            const n = typeof confidence === "number" ? confidence : parseFloat(confidence);
+            return { label, confidence: n };
+          })
+          .filter((c) => !Number.isNaN(c.confidence))
+          .sort((a, b) => b.confidence - a.confidence);
+        if (confidences.length > 0) return { confidences };
+      }
+      return { confidences: [] };
+    }
+
+    // --- Choix de l’URL produit affichée sur une carte (fichier prioritaire, sinon catégorie, sinon accueil) ---
+    function isValidUrlCandidate(value) {
+      return typeof value === "string" && value.trim() !== "";
+    }
+
+    function getCategoryLinks(categoryLabel) {
+      if (Array.isArray(productLinksByCategory[categoryLabel])) {
+        return productLinksByCategory[categoryLabel].filter(isValidUrlCandidate);
+      }
+      const normalized = normalizeCategoryKey(categoryLabel);
+      const fromNormalized = productLinksByCategoryNormalized[normalized];
+      if (Array.isArray(fromNormalized)) {
+        return fromNormalized.filter(isValidUrlCandidate);
+      }
+      return [];
+    }
+
+    function getProductLink(categoryLabel, filename, itemIndex) {
+      const fileCandidate = productLinksByFile[filename];
+      if (isValidUrlCandidate(fileCandidate)) {
+        return fileCandidate;
+      }
+
+      const categoryCandidates = getCategoryLinks(categoryLabel);
+      if (Array.isArray(categoryCandidates) && categoryCandidates.length > 0) {
+        const picked = categoryCandidates[(itemIndex - 1) % categoryCandidates.length];
+        if (isValidUrlCandidate(picked)) return picked;
+      }
+
+      return PRODUCT_FALLBACK_URL;
+    }
+
+    function localizeDirectaluUrl(url) {
+      const raw = String(url || "");
+      if (!raw) return raw;
+      if (!/^https?:\/\//i.test(raw)) return raw;
+      try {
+        const u = new URL(raw);
+        if (!/directalu\.com$/i.test(u.hostname)) return raw;
+        if (/^\/(fr|en)(\/|$)/i.test(u.pathname)) {
+          u.pathname = u.pathname.replace(/^\/(fr|en)(\/|$)/i, currentLang === "en" ? "/en$2" : "/fr$2");
+        } else {
+          const normalizedPath = u.pathname.startsWith("/") ? u.pathname : `/${u.pathname}`;
+          u.pathname = `/${currentLang}${normalizedPath}`;
+        }
+        return u.toString();
+      } catch {
+        return raw;
+      }
+    }
+
+    function extractProductSlug(productUrl) {
+      try {
+        const urlObj = new URL(productUrl);
+        const parts = urlObj.pathname.split("/").filter(Boolean);
+        const productIndex = parts.findIndex((part) => part === "produit" || part === "product");
+        if (productIndex >= 0 && parts[productIndex + 1]) {
+          return parts[productIndex + 1];
+        }
+      } catch (error) {
+        console.warn("URL produit invalide:", productUrl, error);
+      }
+      return null;
+    }
+
+    /** Appel API WordPress (directalu.com) pour titre + image à la une d’une fiche produit */
+    async function fetchProductMeta(productUrl) {
+      if (!isValidUrlCandidate(productUrl)) return null;
+      if (productMetaCache.has(productUrl)) return productMetaCache.get(productUrl);
+      if (DIRECTALU_META_OVERRIDES[productUrl]) {
+        const forced = DIRECTALU_META_OVERRIDES[productUrl];
+        productMetaCache.set(productUrl, forced);
+        return forced;
+      }
+
+      const slug = extractProductSlug(productUrl);
+      if (!slug) {
+        const fallbackMeta = await fetchProductMetaFromPage(productUrl);
+        productMetaCache.set(productUrl, fallbackMeta);
+        return fallbackMeta;
+      }
+
+      try {
+        const apiUrl = `https://directalu.com/wp-json/wp/v2/product?slug=${encodeURIComponent(slug)}&_embed`;
+        const response = await fetch(apiUrl, { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const products = await response.json();
+        const product = Array.isArray(products) ? products[0] : null;
+        if (!product) {
+          // Nouveau site: certaines URLs ne sont plus resolubles via l'API WP par slug.
+          // Fallback: lire la page produit pour recuperer au moins le titre (et image si detectee).
+          const fallbackMeta = await fetchProductMetaFromPage(productUrl);
+          productMetaCache.set(productUrl, fallbackMeta);
+          return fallbackMeta;
+        }
+
+        const title =
+          product.title && typeof product.title.rendered === "string"
+            ? product.title.rendered
+            : null;
+
+        let imageUrl = null;
+        const embeddedMedia = product._embedded && product._embedded["wp:featuredmedia"];
+        if (Array.isArray(embeddedMedia) && embeddedMedia[0] && embeddedMedia[0].source_url) {
+          imageUrl = embeddedMedia[0].source_url;
+        }
+
+        const meta = { title, imageUrl };
+        productMetaCache.set(productUrl, meta);
+        return meta;
+      } catch (error) {
+        console.warn("Impossible de charger les metadonnees produit:", productUrl, error);
+        const fallbackMeta = await fetchProductMetaFromPage(productUrl);
+        productMetaCache.set(productUrl, fallbackMeta);
+        return fallbackMeta;
+      }
+    }
+
+    /** Fallback HTML: extrait titre + meilleure image candidate depuis la page produit */
+    async function fetchProductMetaFromPage(productUrl) {
+      try {
+        const response = await fetch(productUrl, { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const html = await response.text();
+
+        const titleMatch = html.match(/<title>(.*?)<\/title>/i);
+        const rawTitle = titleMatch && titleMatch[1] ? titleMatch[1].trim() : null;
+        const title = rawTitle ? rawTitle.replace(/\s*-\s*DirectAlu\s*$/i, "") : null;
+
+        let imageUrl = null;
+        const ogImageMatch = html.match(/property=["']og:image["'][^>]*content=["']([^"']+)["']/i);
+        if (ogImageMatch && ogImageMatch[1]) {
+          imageUrl = ogImageMatch[1];
+        } else {
+          const imageCandidates = [...html.matchAll(/https:\/\/[^"'\\s>]+\.(?:jpg|jpeg|png|webp)(?:\?[^"'\\s>]*)?/gi)].map((m) => m[0]);
+          imageUrl =
+            imageCandidates.find((url) => /\/uploads\/products\//i.test(url)) ||
+            imageCandidates.find((url) => /thumbnail|variant|image/i.test(url)) ||
+            imageCandidates[0] ||
+            null;
+        }
+
+        return { title, imageUrl };
+      } catch (error) {
+        console.warn("Fallback meta HTML indisponible:", productUrl, error);
+        return null;
+      }
+    }
+
+    // --- Webcam : flux MediaStream, capture JPEG via canvas → Blob → File ---
+    function stopWebcam() {
+      if (webcamStream) {
+        webcamStream.getTracks().forEach((t) => t.stop());
+        webcamStream = null;
+      }
+      webcamVideo.srcObject = null;
+      webcamPanel.classList.remove("is-open");
+      webcamPanel.setAttribute("aria-hidden", "true");
+      if (webcamToggleLabel) webcamToggleLabel.textContent = t("webcamButtonOpen");
+    }
+
+    async function startWebcam() {
+      if (!ensurePhotoReuseConsent()) return;
+      stopWebcam();
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert(t("webcamUnsupported"));
+        return;
+      }
+      try {
+        const constraints = {
+          audio: false,
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        };
+        try {
+          webcamStream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch {
+          webcamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        }
+        webcamVideo.srcObject = webcamStream;
+        await webcamVideo.play();
+        webcamPanel.classList.add("is-open");
+        webcamPanel.setAttribute("aria-hidden", "false");
+        if (webcamToggleLabel) webcamToggleLabel.textContent = t("webcamButtonClose");
+      } catch (e) {
+        console.error(e);
+        alert(t("webcamAccessError"));
+      }
+    }
+
+    function captureWebcamPhoto() {
+      const w = webcamVideo.videoWidth;
+      const h = webcamVideo.videoHeight;
+      if (!w || !h) return;
+      webcamCanvas.width = w;
+      webcamCanvas.height = h;
+      const ctx = webcamCanvas.getContext("2d");
+      ctx.drawImage(webcamVideo, 0, 0, w, h);
+      webcamCanvas.toBlob(
+        (blob) => {
+          if (!blob) return;
+          const file = new File([blob], "webcam-capture.jpg", { type: "image/jpeg" });
+          stopWebcam();
+          handleFile(file, "webcam");
+        },
+        "image/jpeg",
+        0.92
+      );
+    }
+
+    // --- Affichage des prédictions dans la colonne droite + déclenchement grille produits ---
     function showResults(output) {
+      if (resultsEmptyState) resultsEmptyState.style.display = "none";
+      if (!output.confidences || output.confidences.length === 0) {
+        mainResult.style.display = "block";
+        resultName.textContent = t("apiUnexpected");
+        scoreValue.textContent = "—";
+        scoreFill.style.width = "0%";
+        suggestionsList.innerHTML = `<p style="text-align:center;padding:12px;">${t("predictionFormatError")}</p>`;
+        similarProducts.style.display = "none";
+        return;
+      }
       allResults = [...output.confidences];
       const mainLabel = output.confidences[0].label;
       const mainProb = output.confidences[0].confidence;
       
-      resultName.textContent = mainLabel.replace(/_/g, " ");
+      resultName.textContent = formatCategoryLabel(mainLabel);
       scoreValue.textContent = `${(mainProb * 100).toFixed(0)}%`;
       scoreFill.style.width = `${(mainProb * 100).toFixed(0)}%`;
       mainResult.style.display = "block";
@@ -1121,6 +3388,7 @@
       showSimilarProducts(mainLabel);
     }
 
+    /** Affiche les 2e–4e meilleures classes ; clic réordonne allResults et rafraîchit l’UI */
     function updateSuggestions() {
       suggestionsList.innerHTML = "";
       
@@ -1131,12 +3399,13 @@
 
         const suggestion = document.createElement("div");
         suggestion.className = "suggestion-item";
+        if (prob < 0.12) suggestion.classList.add("is-low-confidence");
         suggestion.innerHTML = `
           <div class="suggestion-image" style="background-image: url('${imageUrl}')"></div>
           <div class="suggestion-info">
-            <div class="suggestion-name">${label.replace(/_/g, " ")}</div>
+            <div class="suggestion-name">${formatCategoryLabel(label)}</div>
             <div class="suggestion-score-container">
-              <span class="suggestion-score">Score</span>
+              <span class="suggestion-score">${t("suggestionScore")}</span>
               <span class="suggestion-percentage">${(prob * 100).toFixed(1)}%</span>
             </div>
             <div class="suggestion-progress-bar">
@@ -1150,7 +3419,7 @@
           if (selectedIndex > 0) {
             const selectedItem = allResults.splice(selectedIndex, 1)[0];
             allResults.unshift(selectedItem);
-            resultName.textContent = selectedItem.label.replace(/_/g, " ");
+            resultName.textContent = formatCategoryLabel(selectedItem.label);
             scoreValue.textContent = `${(selectedItem.confidence * 100).toFixed(0)}%`;
             scoreFill.style.width = `${(selectedItem.confidence * 100).toFixed(0)}%`;
             updateSuggestions();
@@ -1162,34 +3431,78 @@
       }
     }
 
+    /** Construit la grille de cartes <a> : URLs depuis product-links ou images HF ; enrichissement WP async */
     function showSimilarProducts(categoryLabel) {
       similarProducts.style.display = "block";
       productsGrid.innerHTML = "";
-      
-      for (let i = 1; i <= 5; i++) {
+
+      const categoryLinks = getCategoryLinks(categoryLabel);
+      const useCategoryLinks = categoryLinks.length > 0;
+      const cardCount = useCategoryLinks ? Math.min(5, categoryLinks.length) : 5;
+
+      for (let i = 1; i <= cardCount; i++) {
         const padded = i.toString().padStart(4, "0");
         const filename = `${categoryLabel}_${padded}.jpg`;
-        const productName = `${categoryLabel.replace(/_/g, " ")}_${padded}.jpg`;
-        const imageUrl = `${IMAGE_BASE_URL}/${categoryLabel}/${filename}`;
-        const productLink = `${PRODUCT_BASE_URL}${filename}`;
+        const productName = `${formatCategoryLabel(categoryLabel)}_${padded}.jpg`;
+        // Si lien produit direct disponible: on attend la vraie image depuis la fiche produit.
+        // Sinon (mode dataset), on garde l'image locale HuggingFace.
+        const imageUrl = useCategoryLinks ? "" : `${IMAGE_BASE_URL}/${categoryLabel}/${filename}`;
+        const baseProductLink = useCategoryLinks ? categoryLinks[i - 1] : getProductLink(categoryLabel, filename, i);
+        const productLink = localizeDirectaluUrl(baseProductLink);
 
-        const productCard = document.createElement("div");
+        const productCard = document.createElement("a");
         productCard.className = "product-card";
+        productCard.href = productLink;
+        productCard.target = "_blank";
+        productCard.rel = "noopener noreferrer";
         productCard.innerHTML = `
           <div class="product-image" style="background-image: url('${imageUrl}')"></div>
-          <div class="product-name">${productName}</div>
-          <a href="${productLink}" target="_blank" rel="noopener noreferrer" class="product-link">Voir sur DirectAlu.com</a>
+          <div class="product-name">${useCategoryLinks ? t("productDirectAlu") : productName.replace(/_/g, " ")}</div>
+          <span class="product-link-text">${t("productView")}</span>
         `;
         productsGrid.appendChild(productCard);
+
+        const imageEl = productCard.querySelector(".product-image");
+        const nameEl = productCard.querySelector(".product-name");
+        Promise.all([fetchProductMeta(productLink), fetchProductMeta(baseProductLink)]).then(
+          ([localizedMeta, sourceMeta]) => {
+            const finalImageUrl = localizedMeta?.imageUrl || sourceMeta?.imageUrl || null;
+            const finalTitleRaw = localizedMeta?.title || sourceMeta?.title || null;
+
+            if (finalImageUrl && imageEl) {
+              imageEl.style.backgroundImage = `url('${finalImageUrl}')`;
+            }
+            if (finalTitleRaw && nameEl) {
+              const cleanTitle = finalTitleRaw.replace(/&#8211;/g, "-").replace(/&amp;/g, "&");
+              nameEl.textContent = localizeProductTitle(cleanTitle);
+            }
+          }
+        );
       }
     }
 
-    async function handleFile(file) {
+    loadEmbeddedProductLinksSync();
+    /** Promesse : attendre le fetch product-links.json avant d’afficher les cartes (évite liens vides) */
+    const productLinksReady = loadProductLinks();
+
+    /**
+     * Pipeline principal : prévisualisation → Client Gradio → /predict_image → showResults.
+     * Erreur réseau : message dans #suggestions-list.
+     */
+    async function handleFile(file, source = "upload") {
+      if (!ensurePhotoReuseConsent()) return;
+      stopWebcam();
+      dropzone.classList.remove("has-result");
+      dropzone.classList.remove("has-preview");
+      if (scanSubtextLabel) scanSubtextLabel.textContent = t("scanSubtextScanning");
       preview.src = URL.createObjectURL(file);
       preview.style.display = "block";
+      dropzone.classList.add("has-preview");
       dropzone.classList.add("scanning");
       progressBar.style.display = "block";
-      scanStatus.style.display = "block";
+      scanStatus.style.display = "none";
+      scanStatus.textContent = "";
+      progressFill.style.width = "0%";
       
       let progress = 0;
       const progressInterval = setInterval(() => {
@@ -1199,67 +3512,107 @@
       }, 200);
 
       try {
+        // Espace Hugging Face Gradio (URL *.hf.space générée au déploiement — à mettre à jour si besoin)
         const client = await Client.connect("https://rahmadev-directalu-com.hf.space");
         const result = await client.predict("/predict_image", { image: file });
-        const output = result.data[0];
+        const output = normalizeGradioLabelOutput(result.data[0]);
+        maybeUploadTrainingOptIn(file, output, source);
 
         clearInterval(progressInterval);
         progressFill.style.width = "100%";
-        
+
+        await productLinksReady;
+
         setTimeout(() => {
+          if (privacyConsentBlock) {
+            privacyConsentBlock.style.display = "none";
+          }
+          if (similarProducts) {
+            similarProducts.style.marginTop = "32px";
+          }
           showResults(output);
-          progressBar.style.display = "none";
-          scanStatus.style.display = "none";
+          scanStatus.style.display = "block";
+          scanStatus.textContent = t("scanStatusDone");
+          dropzone.classList.add("has-result");
           dropzone.classList.remove("scanning");
         }, 500);
       } catch (err) {
+        if (resultsEmptyState) resultsEmptyState.style.display = "none";
         clearInterval(progressInterval);
         progressBar.style.display = "none";
         scanStatus.style.display = "none";
+        if (scanSubtextLabel) scanSubtextLabel.textContent = t("scanSubtextIdle");
+        dropzone.classList.remove("has-result");
+        dropzone.classList.remove("has-preview");
         dropzone.classList.remove("scanning");
+        preview.style.display = "none";
         suggestionsList.innerHTML = `
           <div style="color: #ff6b6b; text-align: center; padding: 20px; background: rgba(255, 107, 107, 0.1); border-radius: 8px; margin: 10px;">
-            <h3>❌ Erreur de connexion</h3>
-            <p><strong>Message:</strong> ${err.message || String(err)}</p>
-            <p><strong>Cause possible:</strong> L'API n'est pas accessible actuellement ou l'espace Hugging Face est en mode "Preparing/Building".</p>
-            <p><strong>Solution:</strong> Vérifiez que l'espace est "Running" sur Hugging Face, puis réessayez.</p>
-            <button onclick="location.reload()" style="background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-top: 10px;">
-              🔄 Réessayer
+            <h3>${t("connectionErrorTitle")}</h3>
+            <p><strong>${t("connectionErrorMessageLabel")}</strong> ${err.message || String(err)}</p>
+            <p><strong>${t("connectionErrorCauseLabel")}</strong> ${t("connectionErrorCauseText")}</p>
+            <p><strong>${t("connectionErrorSolutionLabel")}</strong> ${t("connectionErrorSolutionText")}</p>
+            <button onclick="location.reload()" style="background: linear-gradient(145deg, var(--accent-deep), var(--accent-mid)); color: #fff; border: none; padding: 10px 22px; border-radius: 8px; cursor: pointer; margin-top: 10px; font-weight: 600;">
+              ${t("retry")}
             </button>
           </div>
         `;
       }
     }
 
+    /** Input file invisible : ouvert après consentement (case analyse) */
     function openFileDialog() {
+      if (!ensurePhotoReuseConsent()) return;
+      stopWebcam();
       const input = document.createElement("input");
       input.type = "file";
       input.accept = "image/*";
       input.onchange = () => {
         if (input.files && input.files[0]) {
-          handleFile(input.files[0]);
+          handleFile(input.files[0], "upload");
         }
       };
       input.click();
     }
 
+    // --- Écouteurs : zone de dépôt, boutons, drag & drop, webcam ---
     dropzone.addEventListener("click", openFileDialog);
-    uploadButton.addEventListener("click", openFileDialog);
+    uploadButton.addEventListener("click", (e) => {
+      e.stopPropagation();
+      openFileDialog();
+    });
+
+    webcamToggleButton.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (webcamPanel.classList.contains("is-open")) {
+        stopWebcam();
+      } else {
+        startWebcam();
+      }
+    });
+    webcamCaptureButton.addEventListener("click", (e) => {
+      e.stopPropagation();
+      captureWebcamPhoto();
+    });
+    webcamCloseButton.addEventListener("click", (e) => {
+      e.stopPropagation();
+      stopWebcam();
+    });
 
     dropzone.addEventListener("dragover", (e) => {
       e.preventDefault();
-      dropzone.style.borderColor = "#00bfff";
+      dropzone.style.borderColor = accentSolid();
     });
 
     dropzone.addEventListener("dragleave", () => {
-      dropzone.style.borderColor = "rgba(0, 191, 255, 0.4)";
+      dropzone.style.borderColor = accentRgba(0.4);
     });
 
     dropzone.addEventListener("drop", (e) => {
       e.preventDefault();
-      dropzone.style.borderColor = "rgba(0, 191, 255, 0.4)";
+      dropzone.style.borderColor = accentRgba(0.4);
       if (e.dataTransfer.files.length > 0) {
-        handleFile(e.dataTransfer.files[0]);
+        handleFile(e.dataTransfer.files[0], "upload");
       }
     });
   </script>
