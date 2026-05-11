@@ -1839,11 +1839,11 @@
     }
 
     /*
-      §12 — Intégration sur directalu.com (une seule page, pas d’iframe) :
-      — Dans WordPress : template de page « pleine largeur » + ajouter la classe
-        scanner-page-embed sur <body> (body_class), puis coller le contenu du scanner
-        (main-wrapper et suivants) dans le flux de la page.
-      — Cela supprime le second « plein écran » (100vh) qui force à scroller comme dans une sous-page.
+      §12 — Intégration sur directalu.com :
+      — Page WP dédiée (recommandé) : voir wordpress/page-scanner-ia.php + directalu-scanner-loader.php
+        et régénérer wordpress/directalu-scanner/ via node scripts/extract-wordpress-scanner.mjs
+      — Sans WordPress : classe scanner-page-embed sur <body> + contenu #main-wrapper dans le flux.
+      — Iframe : …/front_v5.html?embed=1 (fond transparent, thème clair, sans toggle thème).
     */
     html:has(body.scanner-page-embed) {
       background-image: none;
@@ -1867,6 +1867,37 @@
     }
     html.da-in-iframe #main-wrapper {
       min-height: 0 !important;
+    }
+
+    /*
+      Mode intégration « propre » dans une iframe (URL ?embed=1 ou ?da_embed=1) :
+      fond transparent + thème clair appliqué tôt en JS pour coller au site parent.
+    */
+    html.da-embed {
+      background: transparent !important;
+      background-image: none !important;
+      background-attachment: scroll !important;
+    }
+
+    html.da-embed body {
+      background: transparent !important;
+    }
+
+    html.da-embed #main-wrapper {
+      background: transparent !important;
+      backdrop-filter: none !important;
+    }
+
+    html.da-embed #main-wrapper::before {
+      display: none !important;
+    }
+
+    html.da-embed .theme-toggle {
+      display: none !important;
+    }
+
+    html.da-embed .main-content {
+      padding-top: 4px;
     }
 
     /* Mobile/tablette étroite : layout mono-colonne, sans débordement horizontal */
@@ -2178,9 +2209,19 @@
 </head>
 
 <body>
-  <!-- Si la page est dans une iframe, classe html.da-in-iframe pour éviter double scroll / hauteur 100vh -->
+  <!-- iframe : hauteur fluide ; ?embed=1 : look « intégré » (clair, sans fond boîte, sans toggle thème) -->
   <script>
-    if (window.self !== window.top) document.documentElement.classList.add("da-in-iframe");
+    (function () {
+      if (window.self !== window.top) document.documentElement.classList.add("da-in-iframe");
+      try {
+        var p = new URLSearchParams(window.location.search);
+        if (p.get("embed") === "1" || p.get("da_embed") === "1") {
+          window.__DA_EMBED_UI__ = true;
+          document.documentElement.classList.add("da-embed");
+          document.documentElement.setAttribute("data-theme", "light");
+        }
+      } catch (e) {}
+    })();
   </script>
 
   <!-- === Enveloppe page : fond flouté + contenu === -->
@@ -2428,16 +2469,23 @@
     import { Client } from "https://esm.sh/@gradio/client";
 
     // --- URLs & données de configuration (adapter si changement d’espace HF ou de site) ---
+    /** Injecté par WordPress (page dédiée) : window.DIRECTALU_SCANNER_CONFIG */
+    const CFG =
+      typeof window !== "undefined" && window.DIRECTALU_SCANNER_CONFIG
+        ? window.DIRECTALU_SCANNER_CONFIG
+        : {};
     /** Base URL des vignettes « dataset » servies depuis un dépôt / space Hugging Face public */
-    const IMAGE_BASE_URL = "https://huggingface.co/spaces/RahmaDev/DirectAlu-v4/resolve/main/imgs";
-    const PRODUCT_LINKS_FILE_URL = "./product-links.json";
-    const PRODUCT_FALLBACK_URL = "https://directalu.com/";
+    const IMAGE_BASE_URL =
+      CFG.imageBaseUrl ?? "https://huggingface.co/spaces/RahmaDev/DirectAlu-v4/resolve/main/imgs";
+    const PRODUCT_LINKS_FILE_URL = CFG.productLinksJson ?? "./product-links.json";
+    const PRODUCT_FALLBACK_URL = CFG.productFallbackUrl ?? "https://directalu.com/";
     /**
      * Opt-in entraînement : URL du serveur qui enregistre l’image (voir training-upload-server.mjs).
      * Local : npm run training-server  puis  npm run serve  → http://localhost:5500/front_v5.html
      * Production : remplacer par ton HTTPS (même chemin /api/training-opt-in si tu gardes ce script).
      */
-    const TRAINING_OPT_IN_UPLOAD_URL = "http://localhost:8787/api/training-upload";
+    const TRAINING_OPT_IN_UPLOAD_URL =
+      CFG.trainingOptInUploadUrl ?? "http://localhost:8787/api/training-upload";
 
     /** Liens par nom de fichier exact (byFile) ou par libellé de catégorie (byCategory) */
     let productLinksByFile = {};
@@ -2892,7 +2940,7 @@
     }
 
     const savedTheme = localStorage.getItem("theme");
-    if (savedTheme === "light") {
+    if (!window.__DA_EMBED_UI__ && savedTheme === "light") {
       document.documentElement.setAttribute("data-theme", "light");
       document.querySelector(".theme-icon").textContent = "☀️";
       document.querySelector(".theme-text").textContent = t("themeLight");
