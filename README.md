@@ -6,20 +6,20 @@ Interface **Scan IA** DirectAlu (reconnaissance produit par image).
 - Données catalogue : `product-links.json`.
 - Ressources : dossier `assets/`.
 
-## Mettre à jour depuis le dépôt de développement
+## Mettre à jour le site après changements sur `front_v5.html`
 
-À la racine du projet parent (`Version_5`) :
+À la racine du dossier parent (`Version_5`, un niveau au-dessus) :
 
 ```bash
 node scripts/sync-reconnaissanceIA-repo.mjs
 ```
 
-Puis commit et push depuis ce dossier.
-
-## Git
+Puis dans ce dossier (`reconnaissanceIA`) :
 
 ```bash
 git add .
 git commit -m "Update scanner"
 git push origin main
 ```
+
+Le dossier `reconnaissanceIA` est le clone Git lié à [github.com/raahma/reconnaissanceIA](https://github.com/raahma/reconnaissanceIA).
